@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Repo público: nunca subir datos reales (nombres, matrículas, historial).
+*.jsonl
+datos_reales/
+
+# Configuración local de Claude
+.claude/
