@@ -33,8 +33,15 @@ custom_components/videoportero/
   mensajes.py     textos de los avisos; no importa HA
   llamadas.py     decisiones → llamadas a servicios; no importa HA
   traduccion.py   estados/MQTT/eventos de HA → eventos del motor; no importa HA
+  sombra.py       comparación con la automatización; no importa HA
+  configuracion.py  entrada + subentradas → configuración del motor
+  historial.py    visitas y diferencias en .storage (90 días)
+  __init__.py     Sistema: suscripciones, motor, modo sombra
+  config_flow.py  alta, opciones y subentradas «móvil» y «hogar»
+  sensor.py       sensor.videoportero_visita y sensor.videoportero_diferencias
 docs/DECISIONES.md  por qué es así
-tests/test_motor.py
+tests/test_motor.py  Python puro
+tests/test_ha.py     en un HA real (venv), con datos inventados
 ```
 
 ## Antes de tocar nada, lee `docs/DECISIONES.md`
@@ -51,6 +58,7 @@ En particular:
 
 ```bash
 python3 tests/test_motor.py
+/tmp/hav/bin/python tests/test_ha.py
 ```
 
 Las comparaciones con la casa (privadas):
@@ -59,6 +67,7 @@ Las comparaciones con la casa (privadas):
 python3 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.9.2 paho-mqtt
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/diferencial.py 100 1
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/historial.py
+/tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase1/sombra_local.py 40 1
 ```
 
 El Python 3.14 del Mac da un segfault al cerrarse con HA cargado (ver

@@ -1,0 +1,213 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Videoportero",
+        "description": "La visita al videoportero: avisos, apertura, quién atiende e historial. Después podrás añadir móviles y dispositivos del hogar.",
+        "data": {
+          "timbre": "Pulsador del timbre",
+          "puerta": "Sensor de la puerta",
+          "camara": "Cámara del videoportero",
+          "camara_frigate": "Cámara de Frigate para las caras",
+          "umbral_cara": "Umbral de cara conocida",
+          "vista_llamada": "Vista de llamada"
+        },
+        "data_description": {
+          "timbre": "El `binary_sensor` que se enciende al pulsar el timbre.",
+          "puerta": "El `binary_sensor` abierta/cerrada de la puerta.",
+          "camara": "Su imagen va en los avisos cuando no hay una foto mejor.",
+          "camara_frigate": "Nombre de la cámara en Frigate. Vacío: no se usan caras.",
+          "umbral_cara": "Una cara cuenta como conocida si su puntuación es mayor que esto.",
+          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender."
+        }
+      },
+      "acciones": {
+        "title": "Lo que hay hoy en casa",
+        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora. En la fase 1 no ejecuta nada: solo compara.",
+        "data": {
+          "abrir_boton": "Abrir con el botón ABRIR",
+          "abrir_automatica": "Abrir en la apertura automática",
+          "apertura_automatica": "Interruptor de apertura automática",
+          "audio": "Interruptor del audio",
+          "marca_audio": "Quién contestó con audio",
+          "banner": "Texto del banner",
+          "al_empezar": "Scripts al empezar la visita",
+          "al_timbre": "Scripts con cada timbre",
+          "comparar": "Automatizaciones con las que comparar"
+        },
+        "data_description": {
+          "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
+          "al_empezar": "Por ejemplo, el zoom de la cámara y silenciar el altavoz. Los de las tablets van en cada dispositivo del hogar.",
+          "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Ya está configurada. Solo puede haber una."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Videoportero",
+        "description": "Cambia la configuración del videoportero.",
+        "data": {
+          "timbre": "Pulsador del timbre",
+          "puerta": "Sensor de la puerta",
+          "camara": "Cámara del videoportero",
+          "camara_frigate": "Cámara de Frigate para las caras",
+          "umbral_cara": "Umbral de cara conocida",
+          "vista_llamada": "Vista de llamada"
+        },
+        "data_description": {
+          "timbre": "El `binary_sensor` que se enciende al pulsar el timbre.",
+          "puerta": "El `binary_sensor` abierta/cerrada de la puerta.",
+          "camara": "Su imagen va en los avisos cuando no hay una foto mejor.",
+          "camara_frigate": "Nombre de la cámara en Frigate. Vacío: no se usan caras.",
+          "umbral_cara": "Una cara cuenta como conocida si su puntuación es mayor que esto.",
+          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender."
+        }
+      },
+      "acciones": {
+        "title": "Lo que hay hoy en casa",
+        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora. En la fase 1 no ejecuta nada: solo compara.",
+        "data": {
+          "abrir_boton": "Abrir con el botón ABRIR",
+          "abrir_automatica": "Abrir en la apertura automática",
+          "apertura_automatica": "Interruptor de apertura automática",
+          "audio": "Interruptor del audio",
+          "marca_audio": "Quién contestó con audio",
+          "banner": "Texto del banner",
+          "al_empezar": "Scripts al empezar la visita",
+          "al_timbre": "Scripts con cada timbre",
+          "comparar": "Automatizaciones con las que comparar"
+        },
+        "data_description": {
+          "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
+          "al_empezar": "Por ejemplo, el zoom de la cámara y silenciar el altavoz. Los de las tablets van en cada dispositivo del hogar.",
+          "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "movil": {
+      "entry_type": "Móvil",
+      "initiate_flow": {
+        "user": "Añadir móvil",
+        "reconfigure": "Cambiar móvil"
+      },
+      "step": {
+        "user": {
+          "title": "Añadir móvil",
+          "description": "Un móvil recibe los avisos de la visita: suena, foto y botón ABRIR.",
+          "data": {
+            "aparato": "Aparato con la app de Home Assistant"
+          }
+        },
+        "detalles": {
+          "title": "{aparato}",
+          "data": {
+            "nombre": "Nombre en los avisos",
+            "con_dueno": "Tiene dueño",
+            "vista": "Vista al tocar el aviso",
+            "panel": "Sensor de ruta de BrowserMod",
+            "aviso_cierre": "Recibe el aviso de quién ha atendido",
+            "pide_nombre_matricula": "Le pide el nombre de las matrículas nuevas",
+            "boton_abrir": "Botón ABRIR en el aviso",
+            "marca": "Marca de «contestar»"
+          },
+          "data_description": {
+            "con_dueno": "Con dueño, el aviso dice «Ana ha abierto la puerta». Sin dueño, «Han abierto la puerta desde …».",
+            "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
+            "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
+            "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
+          }
+        },
+        "reconfigure": {
+          "title": "Cambiar móvil",
+          "data": {
+            "aparato": "Aparato con la app de Home Assistant",
+            "nombre": "Nombre en los avisos",
+            "con_dueno": "Tiene dueño",
+            "vista": "Vista al tocar el aviso",
+            "panel": "Sensor de ruta de BrowserMod",
+            "aviso_cierre": "Recibe el aviso de quién ha atendido",
+            "pide_nombre_matricula": "Le pide el nombre de las matrículas nuevas",
+            "boton_abrir": "Botón ABRIR en el aviso",
+            "marca": "Marca de «contestar»"
+          },
+          "data_description": {
+            "con_dueno": "Con dueño, el aviso dice «Ana ha abierto la puerta». Sin dueño, «Han abierto la puerta desde …».",
+            "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
+            "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
+            "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
+          }
+        }
+      },
+      "error": {
+        "sin_app": "Ese aparato no tiene la app de Home Assistant registrada."
+      },
+      "abort": {
+        "ya_esta": "Ese aparato ya está dado de alta.",
+        "reconfigure_successful": "Guardado."
+      }
+    },
+    "hogar": {
+      "entry_type": "Dispositivo del hogar",
+      "initiate_flow": {
+        "user": "Añadir dispositivo del hogar",
+        "reconfigure": "Cambiar dispositivo del hogar"
+      },
+      "step": {
+        "user": {
+          "title": "Añadir dispositivo del hogar",
+          "description": "Una pantalla de la casa (tablet): suena y muestra la cámara; no recibe avisos.",
+          "data": {
+            "nombre": "Nombre",
+            "aparato": "Aparato con la app de Home Assistant",
+            "panel": "Sensor de ruta de BrowserMod",
+            "scripts_inicio": "Scripts propios al empezar la visita"
+          },
+          "data_description": {
+            "panel": "Entrar en la vista de llamada desde aquí cuenta como atender.",
+            "scripts_inicio": "Se lanzan con `origen: vto`. Si hay, se usan en lugar de las acciones integradas (fase 3)."
+          }
+        },
+        "reconfigure": {
+          "title": "Cambiar dispositivo del hogar",
+          "data": {
+            "nombre": "Nombre",
+            "aparato": "Aparato con la app de Home Assistant",
+            "panel": "Sensor de ruta de BrowserMod",
+            "scripts_inicio": "Scripts propios al empezar la visita"
+          },
+          "data_description": {
+            "panel": "Entrar en la vista de llamada desde aquí cuenta como atender.",
+            "scripts_inicio": "Se lanzan con `origen: vto`. Si hay, se usan en lugar de las acciones integradas (fase 3)."
+          }
+        }
+      },
+      "abort": {
+        "ya_esta": "Ese aparato ya está dado de alta.",
+        "reconfigure_successful": "Guardado."
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "visita": {
+        "name": "Visita",
+        "state": {
+          "sin_visita": "Sin visita",
+          "en_curso": "En curso",
+          "atendida": "Atendida",
+          "abierta_automaticamente": "Abierta automáticamente"
+        }
+      },
+      "diferencias": {
+        "name": "Diferencias con la automatización"
+      }
+    }
+  }
+}

@@ -10,11 +10,19 @@ son inventados: este repositorio es público.
 from __future__ import annotations
 
 import sys
+import types
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+RAIZ = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RAIZ))
+
+# El paquete sin su __init__ (que importa Home Assistant): los módulos que se
+# prueban aquí son Python puro y no deben necesitar HA.
+_paquete = types.ModuleType("custom_components.videoportero")
+_paquete.__path__ = [str(RAIZ / "custom_components" / "videoportero")]
+sys.modules.setdefault("custom_components.videoportero", _paquete)
 
 from custom_components.videoportero import traduccion as tr  # noqa: E402
 from custom_components.videoportero.llamadas import (  # noqa: E402

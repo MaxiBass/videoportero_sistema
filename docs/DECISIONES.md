@@ -117,7 +117,7 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 | Fase | Qué | En casa |
 |---|---|---|
 | 0 | Motor y pruebas; comparación con la automatización y con el último mes | Nada |
-| 1 | Sombra: instalada, escucha y anota lo que habría hecho | Solo se instala |
+| 1 | Sombra: instalada, escucha y anota lo que habría hecho (§9) | Solo se instala |
 | 2 | Cambio: avisa, abre y escribe el banner con los mismos ayudantes y scripts; la automatización se desactiva, no se borra | Con OK de Maxi |
 | 3 | Apertura automática, audio, matrícula nueva y dispositivos del hogar integrados | Con OK de Maxi |
 | 4 | Opcional: panel con historial; retirar lo antiguo | Con OK de Maxi |
@@ -152,3 +152,39 @@ automatización (52 fijos y 400 aleatorios), y las 7 visitas reales desde el
 27/09 se explican por las versiones anteriores de la automatización.
 
 Los datos reales nunca entran en el repositorio.
+
+## 9. Fase 1: el modo sombra
+
+La integración se instala y hace todo menos ejecutar: escucha lo mismo que la
+automatización (estados, MQTT de caras, `matriculas_detectada`, el botón
+ABRIR), decide con el motor, apunta en el historial y calcula las llamadas
+que habría hecho. **No llama a ningún servicio.**
+
+Para comparar, en las opciones se eligen las automatizaciones que hoy hacen
+ese trabajo. Cada vez que una se dispara (`automation_triggered`), se guarda
+el contexto de esa ejecución; las llamadas a servicios (`call_service`) con
+ese contexto son «lo que hizo la automatización». Así no se mezclan las de
+otras automatizaciones que tocan lo mismo (por ejemplo, el zoom al abrir la
+puerta o los avisos de audio).
+
+Cada llamada se empareja con una igual del otro lado hecha a menos de 5 s.
+Lo que pasa 20 s sin pareja es una diferencia: se guarda en el historial y la
+cuenta el sensor `sensor.videoportero_diferencias`. Antes de comparar se
+deshacen los dos cambios de §4, y se ignoran la hora del texto y el tag de la
+visita, que lleva la hora de inicio.
+
+Diferencias que se esperan y no son fallos de la integración:
+
+- Un evento que llega mientras la automatización está procesando otro: ella
+  lo pierde (`mode: single` sin espera activa), la integración no.
+- Las dos tablets en la vista de llamada a la vez: la automatización las
+  vigila con una sola plantilla (o una u otra), y la segunda no la ve.
+- Un reinicio de HA en mitad de una visita.
+
+Los dispositivos (subentradas) y las opciones se aplican sin recargar la
+entrada, para no perder una visita en curso.
+
+Comprobado antes de instalar (privado, con la configuración de casa, 03/10):
+la integración dada de alta con sus formularios, junto a las automatizaciones
+reales en un HA local: 219 escenarios (39 fijos y 180 aleatorios), 5.707
+llamadas emparejadas y ninguna diferencia.
