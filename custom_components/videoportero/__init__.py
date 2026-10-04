@@ -32,7 +32,7 @@ from .const import EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CA
 from .historial import Historial, visita_a_dict
 from .llamadas import llamadas
 from .motor import Banner, Decision, Evento, Motor, TerminaVisita, Tick, Visita
-from .sombra import Comparador, como_la_automatizacion
+from .sombra import Comparador, alcance, como_la_automatizacion
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR]
@@ -75,7 +75,10 @@ class Sistema:
         self.ultima: dict[str, Any] | None = None
         self._quitar: list[CALLBACK_TYPE] = []
         self._tick: CALLBACK_TYPE | None = None
-        self._contextos: dict[str, float] = {}  # ejecuciones de las automatizaciones comparadas
+        # Ejecuciones de las automatizaciones comparadas: contexto → (hora,
+        # scripts que ha lanzado). Ver sombra.Alcance.
+        self._contextos: dict[str, tuple[float, set[str]]] = {}
+        self._alcance = alcance(self.casa.salidas)
         self._emparejadas = 0
 
     # ── Arranque y configuración ──
@@ -98,6 +101,7 @@ class Sistema:
 
     async def cambiar_configuracion(self) -> None:
         self.casa = leer(self.hass, self.entry)
+        self._alcance = alcance(self.casa.salidas)
         self.motor.ajustes = self.casa.ajustes
         self.motor.cambiar_dispositivos(self.casa.dispositivos)
         self._desuscribir()
@@ -228,27 +232,35 @@ class Sistema:
     @callback
     def _al_automatizacion(self, evento: Event) -> None:
         if evento.data.get("entity_id") in self.casa.comparar:
-            self._contextos[evento.context.id] = time.time()
+            self._contextos[evento.context.id] = (time.time(), set())
 
     @callback
     def _al_llamada(self, evento: Event) -> None:
-        if evento.context.id not in self._contextos:
+        contexto = self._contextos.get(evento.context.id)
+        if contexto is None:
             return
         dominio = evento.data.get("domain")
         if dominio not in DOMINIOS_COMPARADOS:
             return
+        servicio = evento.data.get("service", "")
+        datos = dict(evento.data.get("service_data") or {})
+        scripts = contexto[1]
         self.comparador.real(
             evento.time_fired.timestamp(),
             dominio,
-            evento.data.get("service", ""),
-            dict(evento.data.get("service_data") or {}),
+            servicio,
+            datos,
+            lambda clave: self._alcance.admite(clave, scripts),
         )
+        if dominio == "script" and servicio == "turn_on":
+            ents = datos.get("entity_id") or []
+            scripts.update([ents] if isinstance(ents, str) else ents)
 
     @callback
     def _al_revisar(self, _ahora: datetime | None = None) -> None:
         ahora = time.time()
         # Las ejecuciones de hace más de una hora ya no hacen llamadas.
-        self._contextos = {c: t for c, t in self._contextos.items() if ahora - t < 3600}
+        self._contextos = {c: v for c, v in self._contextos.items() if ahora - v[0] < 3600}
         nuevas = self.comparador.emparejadas - self._emparejadas
         self._emparejadas = self.comparador.emparejadas
         diferencias = self.comparador.revisar(ahora)

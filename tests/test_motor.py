@@ -535,6 +535,23 @@ def test_traduccion():
     comprobar(tr.accion_aviso(E, t(0), {"action": "ignorar_matricula"}, None) == [], "otras acciones no")
 
 
+def test_alcance():
+    print("\nQué llamadas de la automatización se comparan")
+    from custom_components.videoportero.sombra import alcance
+
+    a = alcance(SALIDAS)
+    c = lambda d, s, e="", datos="{}": (d, s, e, datos)  # noqa: E731
+    comprobar(a.admite(c("notify", "mobile_app_ana")), "avisos a los móviles")
+    comprobar(not a.admite(c("notify", "mobile_app_tableta")), "no los avisos que mandan los scripts de las tablets")
+    comprobar(a.admite(c("script", "turn_on", "script.salon_timbre")), "el script del dispositivo del hogar")
+    comprobar(not a.admite(c("script", "turn_on", "script.salon_restaurar")), "no los scripts que lanza ese script")
+    comprobar(a.admite(c("input_text", "set_value", "input_text.estado")), "el banner")
+    comprobar(a.admite(c("switch", "turn_on", "switch.motor")), "la apertura automática")
+    comprobar(not a.admite(c("switch", "turn_on", "switch.motor"), {"script.abrir"}),
+              "no el motor cuando lo enciende el script de abrir (mismo contexto)")
+    comprobar(a.admite(c("script", "turn_on", "script.abrir"), {"script.abrir"}), "el script de abrir sí")
+
+
 if __name__ == "__main__":
     for nombre, prueba in list(globals().items()):
         if nombre.startswith("test_") and callable(prueba):

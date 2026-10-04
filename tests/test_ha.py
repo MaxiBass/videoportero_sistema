@@ -214,11 +214,34 @@ async def recorrido(directorio: Path) -> None:
             if dominio == "notify" and isinstance(d.get("data"), dict) and d["data"].get("tag") == "visita-*":
                 d["data"]["tag"] = "visita-20261003100000"
             hass.bus.async_fire("call_service", {"domain": dominio, "service": servicio, "service_data": d}, context=ctx)
-        # ...más una llamada de más, y otra de otra automatización (no cuenta)
+        # ...más una llamada de más que sí le tocaría a la integración...
+        hass.bus.async_fire("call_service", {"domain": "input_text", "service": "set_value",
+                                             "service_data": {"entity_id": "input_text.banner", "value": "otro"}}, context=ctx)
+        # ...lo que hacen por dentro los scripts que lanza (mismo contexto: no cuenta)...
+        hass.bus.async_fire("call_service", {"domain": "notify", "service": "mobile_app_tableta",
+                                             "service_data": {"message": "command_screen_on"}}, context=ctx)
         hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
-                                             "service_data": {"entity_id": "script.otro"}}, context=ctx)
+                                             "service_data": {"entity_id": "script.salon_restaurar"}}, context=ctx)
+        # ...y otra automatización (no cuenta)
+        hass.bus.async_fire("call_service", {"domain": "input_text", "service": "set_value",
+                                             "service_data": {"entity_id": "input_text.banner", "value": "ajeno"}},
+                            context=Context())
+        # El botón ABRIR: la automatización lanza el script de abrir, que enciende el motor por dentro
+        ctx_abrir = Context()
+        hass.bus.async_fire("automation_triggered", {"entity_id": "automation.visita"}, context=ctx_abrir)
+        await hass.async_block_till_done()
         hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
-                                             "service_data": {"entity_id": "script.ajeno"}}, context=Context())
+                                             "service_data": {"entity_id": ["script.abrir"]}}, context=ctx_abrir)
+        hass.bus.async_fire("call_service", {"domain": "switch", "service": "turn_on",
+                                             "service_data": {"entity_id": "switch.motor"}}, context=ctx_abrir)
+        # La apertura automática sí la hace la automatización (sin lanzar el script de abrir)
+        ctx_auto = Context()
+        hass.bus.async_fire("automation_triggered", {"entity_id": "automation.visita"}, context=ctx_auto)
+        await hass.async_block_till_done()
+        hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
+                                             "service_data": {"entity_id": "script.zoom"}}, context=ctx_auto)
+        hass.bus.async_fire("call_service", {"domain": "switch", "service": "turn_on",
+                                             "service_data": {"entity_id": "switch.motor"}}, context=ctx_auto)
         await hass.async_block_till_done()
         sistema._al_revisar()
         comprobar(sistema.historial.comparadas >= len(esperadas), f"empareja lo que coincide ({sistema.historial.comparadas})")
@@ -226,8 +249,13 @@ async def recorrido(directorio: Path) -> None:
         sistema._al_revisar()
         await hass.async_block_till_done()
         resumenes = [d["resumen"] for d in sistema.historial.diferencias]
-        comprobar(any("script.otro" in r for r in resumenes), f"apunta lo que solo hizo la automatización ({resumenes})")
-        comprobar(not any("script.ajeno" in r for r in resumenes), "ignora las demás automatizaciones")
+        comprobar(any('"otro"' in r for r in resumenes), f"apunta lo que solo hizo la automatización ({resumenes})")
+        comprobar(not any("ajeno" in r for r in resumenes), "ignora las demás automatizaciones")
+        comprobar(not any("tableta" in r or "salon_restaurar" in r for r in resumenes),
+                  "ignora lo que hacen por dentro los scripts que lanza")
+        motor = [r for r in resumenes if "switch.motor" in r]
+        comprobar(len(motor) == 1, f"el motor que enciende el script de abrir no cuenta; la apertura automática sí ({motor})")
+        comprobar(any("script.abrir" in r for r in resumenes), "el script de abrir sí cuenta")
         comprobar(any("Luis ha atendido" not in r for r in resumenes), "el cierre se compara sin el «quién»")
         comprobar(hass.states.get("sensor.videoportero_diferencias").state == str(len(resumenes)),
                   "el sensor cuenta las diferencias")

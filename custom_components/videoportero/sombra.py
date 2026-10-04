@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from .llamadas import Llamada
+from .llamadas import Llamada, Salidas
 from .motor import POR_PUERTA, Avisar, Decision, Dispositivo, TerminaVisita
 
 TOLERANCIA = 5.0
@@ -78,10 +78,63 @@ def como_la_automatizacion(decisiones: Iterable[Decision], dispositivos: Mapping
     return res
 
 
+Clave = tuple[str, str, str, str]
+
+
+@dataclass(frozen=True)
+class Alcance:
+    """Qué llamadas de la automatización le tocan a la integración.
+
+    Un script lanzado con `script.turn_on` hereda el contexto de quien lo
+    lanza, así que lo que hace por dentro (los avisos y el ADB de las
+    tablets, el motor que enciende el script de abrir...) llega con el
+    contexto de la automatización. La integración lanza esos mismos scripts,
+    pero no hace lo que ellos hacen dentro: solo cuentan las llamadas que la
+    integración haría ella misma. Visto el 04/10/2026 con la primera visita
+    real en sombra.
+    """
+
+    avisos: frozenset[str] = frozenset()  # servicios notify de los móviles
+    entidades: frozenset[str] = frozenset()  # scripts, switch e input_text que llama la integración
+    abrir_boton: str = ""
+    abrir_automatica: str = ""
+
+    def admite(self, clave: Clave, scripts_del_contexto: Iterable[str] = ()) -> bool:
+        dominio, servicio, entidad, _ = clave
+        if dominio == "notify":
+            return servicio in self.avisos
+        if entidad not in self.entidades:
+            return False
+        # El script del botón ABRIR enciende el motor por dentro, con el mismo
+        # contexto. La apertura automática, en cambio, la hace la propia
+        # automatización de la visita, que nunca lanza ese script.
+        if (
+            entidad == self.abrir_automatica
+            and self.abrir_boton
+            and self.abrir_boton != entidad
+            and self.abrir_boton in scripts_del_contexto
+        ):
+            return False
+        return True
+
+
+def alcance(salidas: Salidas) -> Alcance:
+    entidades = {*salidas.al_empezar, *salidas.al_timbre, salidas.abrir_boton, salidas.abrir_automatica,
+                 salidas.banner, salidas.marca_audio}
+    for hogar in salidas.hogar.values():
+        entidades.update(hogar.scripts_inicio)
+    return Alcance(
+        avisos=frozenset(m.notify for m in salidas.moviles.values()),
+        entidades=frozenset(e for e in entidades if e),
+        abrir_boton=salidas.abrir_boton,
+        abrir_automatica=salidas.abrir_automatica,
+    )
+
+
 @dataclass
 class Apunte:
     hora: float
-    clave: tuple[str, str, str, str]
+    clave: Clave
     visita: str | None = None
 
 
@@ -115,9 +168,17 @@ class Comparador:
         for c in claves(llamada.dominio, llamada.servicio, llamada.datos):
             self._apuntar(Apunte(hora, c, visita), self.esperadas, self.reales)
 
-    def real(self, hora: float, dominio: str, servicio: str, datos: Mapping[str, Any]) -> None:
+    def real(
+        self,
+        hora: float,
+        dominio: str,
+        servicio: str,
+        datos: Mapping[str, Any],
+        admite: Callable[[Clave], bool] | None = None,
+    ) -> None:
         for c in claves(dominio, servicio, datos):
-            self._apuntar(Apunte(hora, c), self.reales, self.esperadas)
+            if admite is None or admite(c):
+                self._apuntar(Apunte(hora, c), self.reales, self.esperadas)
 
     def _apuntar(self, a: Apunte, propia: list[Apunte], otra: list[Apunte]) -> None:
         for i, b in enumerate(otra):

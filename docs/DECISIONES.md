@@ -167,6 +167,17 @@ ese contexto son «lo que hizo la automatización». Así no se mezclan las de
 otras automatizaciones que tocan lo mismo (por ejemplo, el zoom al abrir la
 puerta o los avisos de audio).
 
+Solo cuentan las llamadas que haría la propia integración (`sombra.Alcance`):
+avisos a los móviles dados de alta y los scripts, interruptores e
+`input_text` que la integración llama. Un script lanzado con `script.turn_on`
+hereda el contexto de quien lo lanza, así que lo que hace por dentro (los
+avisos y el ADB de las tablets, sus scripts de restaurar, el motor que
+enciende el script del botón ABRIR) llega con el contexto de la
+automatización; la integración lanza esos scripts, pero no hace lo que ellos
+hacen dentro. Visto en casa con la primera visita real (04/10, 12:21): las 7
+diferencias que dejó la v0.1.0 son de esto y están explicadas; la v0.1.1 ya
+no las cuenta.
+
 Cada llamada se empareja con una igual del otro lado hecha a menos de 5 s.
 Lo que pasa 20 s sin pareja es una diferencia: se guarda en el historial y la
 cuenta el sensor `sensor.videoportero_diferencias`. Antes de comparar se
