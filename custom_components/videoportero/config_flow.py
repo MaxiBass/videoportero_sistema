@@ -42,6 +42,7 @@ from .const import (
     CONF_MARCA_AUDIO,
     CONF_NOMBRE,
     CONF_PANEL,
+    CONF_PERSONAS,
     CONF_PIDE_NOMBRE,
     CONF_PUERTA,
     CONF_SCRIPTS_INICIO,
@@ -74,6 +75,7 @@ def esquema_videoportero(a: Mapping[str, Any]) -> vol.Schema:
             vol.Required(CONF_PUERTA, default=a.get(CONF_PUERTA, vol.UNDEFINED)): _entidad("binary_sensor"),
             _opcional(CONF_CAMARA, a): _entidad("camera"),
             _opcional(CONF_CAMARA_FRIGATE, a): selector.TextSelector(),
+            _opcional(CONF_PERSONAS, a): _entidad("sensor"),
             vol.Required(CONF_UMBRAL_CARA, default=a.get(CONF_UMBRAL_CARA, DEFECTO_UMBRAL_CARA)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0.5, max=1, step=0.01, mode=selector.NumberSelectorMode.BOX)
             ),

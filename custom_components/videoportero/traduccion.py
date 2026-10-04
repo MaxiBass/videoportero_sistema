@@ -36,6 +36,7 @@ class Entradas:
     timbre: str  # binary_sensor del pulsador
     puerta: str  # binary_sensor de la puerta
     camara_caras: str = ""  # cámara de Frigate cuyas caras cuentan
+    personas: str = ""  # sensor de Frigate con las personas que cuenta en esa cámara
     apertura_automatica: str = ""  # input_boolean (hasta la fase 3)
     audio: str = ""  # input_boolean del audio (hasta la fase 3)
     marca_audio: str = ""  # input_text con quién contestó (hasta la fase 3)
@@ -85,15 +86,32 @@ def estado(
     return []
 
 
-def cara(e: Entradas, hora: datetime, mensaje: Mapping[str, Any]) -> list[Evento]:
-    """Un mensaje de `frigate/tracked_object_update`."""
+def _entero(valor: str | None) -> int:
+    """Como el filtro `int(0)` de las plantillas de HA."""
+    try:
+        return int(float(valor or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def cara(
+    e: Entradas,
+    hora: datetime,
+    mensaje: Mapping[str, Any],
+    leer: Callable[[str], str | None] | None = None,
+) -> list[Evento]:
+    """Un mensaje de `frigate/tracked_object_update`.
+
+    Sin sensor de personas configurado, toda cara cuenta como confirmada.
+    """
     if mensaje.get("type") != "face" or mensaje.get("camera") != e.camara_caras:
         return []
     try:
         score = float(mensaje.get("score") or 0)
     except (TypeError, ValueError):
         score = 0.0
-    return [Cara(hora, str(mensaje.get("name") or ""), score, str(mensaje.get("id") or ""))]
+    confirmada = not e.personas or (leer is not None and _entero(leer(e.personas)) >= 1)
+    return [Cara(hora, str(mensaje.get("name") or ""), score, str(mensaje.get("id") or ""), confirmada)]
 
 
 def matricula(e: Entradas, hora: datetime, datos: Mapping[str, Any]) -> list[Evento]:

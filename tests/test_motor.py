@@ -552,6 +552,33 @@ def test_alcance():
     comprobar(a.admite(c("script", "turn_on", "script.abrir"), {"script.abrir"}), "el script de abrir sí")
 
 
+def test_cara_sin_confirmar():
+    print("\nCara de un objeto que Frigate aún no cuenta como persona")
+    m = motor()
+    comprobar(m.procesar(Cara(t(0), "", 0.0, "c1", confirmada=False)) == [], "no empieza visita (detección falsa)")
+    comprobar(m.visita is None, "ni deja visita abierta")
+    d = m.procesar(Cara(t(1), "", 0.0, "c1", confirmada=True))
+    comprobar(de(EmpiezaVisita, d) and aviso(d).mensaje == "Alguien desconocido en la puerta (10:00)",
+              "la siguiente, ya confirmada, sí")
+    comprobar(de(EmpiezaVisita, m.procesar(Timbre(t(400)))), "el timbre empieza siempre")
+    a = aviso(m.procesar(Cara(t(401), "Ana", 0.99, "c2", confirmada=False)))
+    comprobar(a is not None and a.mensaje == "\U0001f514 Ana está llamando al timbre (10:06)",
+              "dentro de una visita, una cara sin confirmar cuenta igual")
+
+
+def test_traduccion_personas():
+    print("\nTraducción: confirmación de Frigate")
+    e = tr.Entradas(timbre="binary_sensor.timbre", puerta="binary_sensor.puerta", camara_caras="Portal",
+                    personas="sensor.portal_person_count")
+    msg = {"type": "face", "camera": "Portal", "name": None, "score": 0.0, "id": "x"}
+    comprobar(tr.cara(e, t(0), msg, {"sensor.portal_person_count": "0"}.get)[0].confirmada is False, "0 personas: sin confirmar")
+    comprobar(tr.cara(e, t(0), msg, {"sensor.portal_person_count": "1"}.get)[0].confirmada is True, "1 persona: confirmada")
+    comprobar(tr.cara(e, t(0), msg, {"sensor.portal_person_count": "unavailable"}.get)[0].confirmada is False,
+              "sensor no disponible: sin confirmar (como int(0))")
+    comprobar(tr.cara(E, t(0), {**msg, "camera": "Portal"}, None)[0].confirmada is True,
+              "sin sensor configurado, toda cara cuenta")
+
+
 if __name__ == "__main__":
     for nombre, prueba in list(globals().items()):
         if nombre.startswith("test_") and callable(prueba):

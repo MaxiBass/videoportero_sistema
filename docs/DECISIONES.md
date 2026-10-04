@@ -67,6 +67,14 @@ variables de la automatización. Resumen:
   reinicia la cuenta). El cierre de la puerta no es un evento.
 - El primer aviso suena; el resto lo sustituye en silencio (mismo tag).
 - Cara conocida: score **estrictamente** mayor que 0,95 y con nombre.
+- Una cara solo **empieza** visita si Frigate ya cuenta alguna persona en la
+  cámara (sensor de personas ≥ 1). Frigate manda caras de objetos que luego
+  descarta como detección falsa (04/10/2026, 18:31: sonó la visita sin
+  nadie). Las caras reales también llegan a veces sin nombre y con score 0, así
+  que un umbral de score no sirve. Es una condición y no una espera, para no
+  bloquear un timbre. Se aplicó igual en la automatización el mismo día, así
+  que no es una diferencia entre las dos. Sin sensor configurado, toda cara
+  cuenta.
 - Tope de 200 eventos por visita, como el `repeat`.
 
 Cambios aprobados por Maxi el 03/10/2026, y los únicos:

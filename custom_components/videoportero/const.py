@@ -11,6 +11,7 @@ CONF_TIMBRE = "timbre"
 CONF_PUERTA = "puerta"
 CONF_CAMARA = "camara"
 CONF_CAMARA_FRIGATE = "camara_frigate"
+CONF_PERSONAS = "personas"  # sensor de Frigate: personas en la cámara
 CONF_UMBRAL_CARA = "umbral_cara"
 CONF_VISTA_LLAMADA = "vista_llamada"
 

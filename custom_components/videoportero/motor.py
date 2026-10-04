@@ -104,12 +104,17 @@ class Puerta:
 
 @dataclass(frozen=True)
 class Cara:
-    """Una cara de la cámara del videoportero (ya filtrada por cámara)."""
+    """Una cara de la cámara del videoportero (ya filtrada por cámara).
+
+    `confirmada`: Frigate cuenta ya alguna persona en la cámara. Sin eso, una
+    cara no empieza visita (DECISIONES §4); dentro de una visita cuenta igual.
+    """
 
     hora: datetime
     nombre: str
     score: float
     id: str
+    confirmada: bool = True
 
 
 @dataclass(frozen=True)
@@ -335,7 +340,9 @@ class Motor:
             return False
         if isinstance(ev, Matricula):
             return ev.datos.get("avisar") == True  # noqa: E712  como el filtro event_data del disparador
-        return True
+        # Una cara de un objeto que Frigate aún no cuenta como persona puede
+        # ser una detección falsa (04/10, 18:31): no empieza visita.
+        return ev.confirmada
 
     def _abrir_visita(self, ev: Timbre | Cara | Matricula, salida: list[Decision]) -> None:
         motivo = {Timbre: "timbre", Cara: "cara", Matricula: "matricula"}[type(ev)]

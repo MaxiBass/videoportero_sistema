@@ -10,7 +10,8 @@
           "camara": "Cámara del videoportero",
           "camara_frigate": "Cámara de Frigate para las caras",
           "umbral_cara": "Umbral de cara conocida",
-          "vista_llamada": "Vista de llamada"
+          "vista_llamada": "Vista de llamada",
+          "personas": "Frigate person count sensor"
         },
         "data_description": {
           "timbre": "El `binary_sensor` que se enciende al pulsar el timbre.",
@@ -18,7 +19,8 @@
           "camara": "Su imagen va en los avisos cuando no hay una foto mejor.",
           "camara_frigate": "Nombre de la cámara en Frigate. Vacío: no se usan caras.",
           "umbral_cara": "Una cara cuenta como conocida si su puntuación es mayor que esto.",
-          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender."
+          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender.",
+          "personas": "Counts the people on that camera (`sensor.<camera>_person_count`). With it, a face only starts a visit if Frigate already counts a person, which avoids false detections."
         }
       },
       "acciones": {
@@ -57,7 +59,8 @@
           "camara": "Cámara del videoportero",
           "camara_frigate": "Cámara de Frigate para las caras",
           "umbral_cara": "Umbral de cara conocida",
-          "vista_llamada": "Vista de llamada"
+          "vista_llamada": "Vista de llamada",
+          "personas": "Frigate person count sensor"
         },
         "data_description": {
           "timbre": "El `binary_sensor` que se enciende al pulsar el timbre.",
@@ -65,7 +68,8 @@
           "camara": "Su imagen va en los avisos cuando no hay una foto mejor.",
           "camara_frigate": "Nombre de la cámara en Frigate. Vacío: no se usan caras.",
           "umbral_cara": "Una cara cuenta como conocida si su puntuación es mayor que esto.",
-          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender."
+          "vista_llamada": "Parte de la ruta del panel de llamada. Entrar en él (sin `-ver`) cuenta como atender.",
+          "personas": "Counts the people on that camera (`sensor.<camera>_person_count`). With it, a face only starts a visit if Frigate already counts a person, which avoids false detections."
         }
       },
       "acciones": {

@@ -177,7 +177,7 @@ class Sistema:
         except (TypeError, ValueError):
             return
         if isinstance(datos, dict):
-            self._procesar(tr.cara(self.casa.entradas, dt_util.now(), datos))
+            self._procesar(tr.cara(self.casa.entradas, dt_util.now(), datos, self._leer))
 
     @callback
     def _al_tick(self, ahora: datetime) -> None:
