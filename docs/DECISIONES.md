@@ -207,3 +207,13 @@ Comprobado antes de instalar (privado, con la configuración de casa, 03/10):
 la integración dada de alta con sus formularios, junto a las automatizaciones
 reales en un HA local: 219 escenarios (39 fijos y 180 aleatorios), 5.707
 llamadas emparejadas y ninguna diferencia.
+
+## 10. Icono (v0.1.3)
+
+En `custom_components/videoportero/brand/` (`icon.png` 256×256 e
+`icon@2x.png` 512×512): desde HA 2026.9 el componente `brands` sirve desde
+esa carpeta las imágenes de una integración custom (en la raíz del repo no
+las ve). Diseño propio, porque el repositorio es público: la placa de un
+videoportero (cámara, rejilla del altavoz y pulsador) en blanco sobre un
+cuadrado redondeado verde azulado. Se dibuja con `docs/icono/generar.py`
+(Pillow, que ya trae HA).

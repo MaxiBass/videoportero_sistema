@@ -39,6 +39,7 @@ custom_components/videoportero/
   __init__.py     Sistema: suscripciones, motor, modo sombra
   config_flow.py  alta, opciones y subentradas «móvil» y «hogar»
   sensor.py       sensor.videoportero_visita y sensor.videoportero_diferencias
+  brand/          icono (HA 2026.9 lo lee de aquí; se dibuja con docs/icono/generar.py)
 docs/DECISIONES.md  por qué es así
 tests/test_motor.py  Python puro
 tests/test_ha.py     en un HA real (venv), con datos inventados
