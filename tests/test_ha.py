@@ -159,7 +159,7 @@ async def recorrido(directorio: Path) -> None:
         r = await sub.async_configure(r["flow_id"], {"aparato": luis})
         r = await sub.async_configure(r["flow_id"], {
             "nombre": "Luis", "con_dueno": True, "aviso_cierre": True, "pide_nombre_matricula": False,
-            "boton_abrir": False})
+            "boton_abrir": False, "panel": "sensor.browsermod_luis_browser_path"})
         r = await sub.async_init((entrada.entry_id, "movil"), context={"source": "user"})
         r = await sub.async_configure(r["flow_id"], {"aparato": reloj})
         r = await sub.async_configure(r["flow_id"], {
@@ -197,6 +197,21 @@ async def recorrido(directorio: Path) -> None:
         comprobar(estado.attributes.get("ultima_atendida_por") == "Luis", f"y se sabe quién ({estado.attributes})")
         comprobar(len(sistema.historial.visitas) == 1 and sistema.historial.visitas[0]["como"] == "app",
                   "queda en el historial")
+        vis = "sensor.browsermod_luis_browser_visibility"
+        comprobar(sistema.casa.entradas.visible.get(vis) is not None,
+                  "encuentra sola la visibilidad de BrowserMod junto al sensor de ruta")
+        hass.states.async_set(vis, "hidden")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        comprobar(hass.states.get("sensor.videoportero_visita").state == "en_curso", "otra visita (HA ya era su última app)")
+        hass.states.async_set(vis, "visible")
+        await hass.async_block_till_done()
+        estado = hass.states.get("sensor.videoportero_visita")
+        comprobar(estado.state == "atendida" and estado.attributes.get("ultima_atendida_por") == "Luis",
+                  f"la página de HA pasa a verse en su móvil: atendida por Luis ({estado.state})")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        await hass.async_block_till_done()
 
         # ── Comparación ──
         print("\nComparación con la automatización")

@@ -43,6 +43,8 @@ class Entradas:
     marcas: Mapping[str, str] = field(default_factory=dict)  # valor de la marca → dispositivo
     app: Mapping[str, str] = field(default_factory=dict)  # sensor last_used_app → dispositivo
     panel: Mapping[str, str] = field(default_factory=dict)  # sensor de BrowserMod → dispositivo
+    # Visibilidad de BrowserMod de los móviles → dispositivo (página de HA en pantalla)
+    visible: Mapping[str, str] = field(default_factory=dict)
     aparatos: Mapping[str, str] = field(default_factory=dict)  # device_id de la app de HA → dispositivo
     usuarios: Mapping[str, str] = field(default_factory=dict)  # usuario de HA → dispositivo
     vista_llamada: str = "videoportero"  # parte de la ruta de la vista de llamada
@@ -83,6 +85,11 @@ def estado(
         if en_llamada(nuevo, e) and not en_llamada(viejo, e):
             return [Atendido(hora, e.panel[entidad], POR_PANEL)]
         return []
+    if entidad in e.visible:
+        # La página de HA pasa a verse en el móvil. Cubre que HA ya fuera la
+        # última app (last_used_app no cambia); con la pantalla de bloqueo
+        # delante sigue en hidden (DECISIONES §4).
+        return [Atendido(hora, e.visible[entidad], POR_APP)] if nuevo == "visible" else []
     return []
 
 

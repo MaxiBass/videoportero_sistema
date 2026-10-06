@@ -107,6 +107,19 @@ def app_ha(hass: HomeAssistant, device_id: str | None) -> AppHA | None:
     )
 
 
+def visibilidad(hass: HomeAssistant, panel: str) -> str | None:
+    """El sensor de visibilidad del mismo navegador de BrowserMod que `panel`."""
+    reg = er.async_get(hass)
+    ruta = reg.async_get(panel)
+    if ruta is not None and ruta.device_id:
+        for e in er.async_entries_for_device(reg, ruta.device_id):
+            if e.domain == "sensor" and e.unique_id.lower().endswith("-browser_visibility"):
+                return e.entity_id
+    if panel.endswith("_browser_path"):
+        return panel.removesuffix("_browser_path") + "_browser_visibility"
+    return None
+
+
 def _lista(valor: Any) -> tuple[str, ...]:
     if not valor:
         return ()
@@ -122,6 +135,7 @@ def leer(hass: HomeAssistant, entrada: ConfigEntry) -> Casa:
     hogar: dict[str, SalidaHogar] = {}
     app: dict[str, str] = {}
     panel: dict[str, str] = {}
+    visible: dict[str, str] = {}
     aparatos: dict[str, str] = {}
     usuarios: dict[str, list[str]] = {}
     marcas: dict[str, str] = {}
@@ -153,6 +167,8 @@ def leer(hass: HomeAssistant, entrada: ConfigEntry) -> Casa:
                 avisos[datos_app.notify] = ident
                 if datos_app.last_used_app:
                     app[datos_app.last_used_app] = ident
+            if d.get(CONF_PANEL) and (vis := visibilidad(hass, d[CONF_PANEL])):
+                visible[vis] = ident
             if d.get(CONF_MARCA):
                 marcas[str(d[CONF_MARCA]).strip()] = ident
         elif sub.subentry_type == SUB_HOGAR:
@@ -176,6 +192,7 @@ def leer(hass: HomeAssistant, entrada: ConfigEntry) -> Casa:
         marcas=marcas,
         app=app,
         panel=panel,
+        visible=visible,
         aparatos=aparatos,
         # Un usuario con varios aparatos no dice cuál: solo cuenta si es único.
         usuarios={u: ids[0] for u, ids in usuarios.items() if len(ids) == 1},

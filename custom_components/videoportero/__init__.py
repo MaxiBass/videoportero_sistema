@@ -110,7 +110,7 @@ class Sistema:
 
     async def _suscribir(self) -> None:
         e = self.casa.entradas
-        entidades = [x for x in (e.timbre, e.puerta, e.apertura_automatica, e.audio, *e.app, *e.panel) if x]
+        entidades = [x for x in (e.timbre, e.puerta, e.apertura_automatica, e.audio, *e.app, *e.panel, *e.visible) if x]
         if entidades:
             self._quitar.append(async_track_state_change_event(self.hass, entidades, self._al_estado))
         self._quitar.append(self.hass.bus.async_listen(EVENTO_MATRICULA, self._al_matricula))

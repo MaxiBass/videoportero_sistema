@@ -76,6 +76,26 @@ variables de la automatización. Resumen:
   que no es una diferencia entre las dos. Sin sensor configurado, toda cara
   cuenta.
 - Tope de 200 eventos por visita, como el `repeat`.
+- **Cuándo un móvil cuenta como que atiende** (06/10/2026, también en la
+  automatización, así que no es una diferencia entre las dos). Vale
+  cualquiera de estas, solo si ocurre *durante* la visita:
+  1. Su «Last used app» pasa a la app de HA. Es la más rápida y la única que
+     no ha fallado nunca, pero solo salta al *cambiar*: si HA ya era la
+     última app usada, abrirla no se ve.
+  2. La visibilidad de BrowserMod de ese móvil pasa a `visible`: la página de
+     HA se está viendo en pantalla. Cubre el caso anterior. Con la pantalla
+     de bloqueo delante sigue en `hidden` (comprobado con una visita real).
+  3. Su BrowserMod entra en la vista de llamada (la que no acaba en `-ver`).
+     Es lo único que ve a quien ya estaba mirando HA al sonar el timbre, y lo
+     único que sirve en las tablets, que tienen HA siempre delante.
+
+  Se descartaron, con los datos de un mes: «Interactive» (pantalla
+  encendida) junto a la última app, porque la pantalla de bloqueo también
+  cuenta como encendida y daba «atendido» sin que nadie abriera HA; «Keyguard
+  / Device locked», porque no se actualizan al momento; y dejar solo
+  BrowserMod, porque se le escapó 1 de 14 aperturas y en las demás llegó una
+  mediana de 6 s más tarde (hasta 43 s). La integración encuentra sola el
+  sensor de visibilidad junto al de ruta de BrowserMod de cada móvil.
 
 Cambios aprobados por Maxi el 03/10/2026, y los únicos:
 

@@ -579,6 +579,19 @@ def test_traduccion_personas():
               "sin sensor configurado, toda cara cuenta")
 
 
+def test_traduccion_visibilidad():
+    print("\nTraducción: la página de HA pasa a verse en el móvil")
+    e = tr.Entradas(timbre="binary_sensor.timbre", puerta="binary_sensor.puerta",
+                    visible={"sensor.browsermod_ana_browser_visibility": "ana"})
+    nada = lambda x: None  # noqa: E731
+    v = "sensor.browsermod_ana_browser_visibility"
+    comprobar(tr.estado(e, t(0), v, "hidden", "visible", nada) == [Atendido(t(0), "ana", POR_APP)], "hidden → visible: atiende")
+    comprobar(tr.estado(e, t(0), v, "unavailable", "visible", nada) == [Atendido(t(0), "ana", POR_APP)],
+              "al reconectar BrowserMod ya visible: atiende")
+    comprobar(tr.estado(e, t(0), v, "visible", "hidden", nada) == [], "dejar de verse: nada")
+    comprobar(tr.estado(e, t(0), v, "visible", "visible", nada) == [], "ya se veía (solo atributos): nada")
+
+
 if __name__ == "__main__":
     for nombre, prueba in list(globals().items()):
         if nombre.startswith("test_") and callable(prueba):

@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.1.3 (fase 1, modo sombra). Este documento se actualiza con
+Estado: versión 0.1.4 (fase 1, modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
@@ -36,8 +36,11 @@ En la app: Ajustes → Aplicación complementaria → Gestionar sensores.
 | Qué | Para qué | Si falta |
 |---|---|---|
 | Notificaciones permitidas | Recibir los avisos | No recibe nada |
-| Sensor **«Last used app»** (pide el permiso de acceso al uso de aplicaciones) | Abrir la app de HA durante una visita cuenta como atender | Solo se detecta por BrowserMod, si está |
-| **BrowserMod** registrado en la app (opcional) y su sensor de ruta | Entrar en la vista de llamada cuenta como atender, también si HA ya era la última app usada | Si HA ya era la última app, abrirla no se detecta |
+| Sensor **«Last used app»** (pide el permiso de acceso al uso de aplicaciones) | Abrir la app de HA durante una visita cuenta como atender. Es la forma más rápida | Solo se detecta por BrowserMod, más tarde y no siempre |
+| **BrowserMod** registrado en la app (recomendado), con sus sensores de **ruta** y de **visibilidad** (los crea BrowserMod; en el formulario del móvil se elige el de ruta y la integración encuentra sola el de visibilidad) | La página de HA que pasa a verse en pantalla cuenta como atender, también si HA ya era la última app usada. Entrar en la vista de llamada, también | Si HA ya era la última app usada, abrirla no se detecta |
+
+No hace falta activar «Interactive» ni «Keyguard locked»: no se usan (ver
+DECISIONES §4).
 
 Al darlo de alta, la integración saca sola el servicio de avisos, el sensor
 «Last used app» y el identificador del botón ABRIR a partir del aparato
