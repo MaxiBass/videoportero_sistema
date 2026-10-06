@@ -41,6 +41,7 @@ custom_components/videoportero/
   sensor.py       sensor.videoportero_visita y sensor.videoportero_diferencias
   brand/          icono (HA 2026.9 lo lee de aquí; se dibuja con docs/icono/generar.py)
 docs/DECISIONES.md  por qué es así
+docs/REQUISITOS.md  qué hay que instalar/activar en HA y en la app de HA (actualizarlo con cada cambio)
 tests/test_motor.py  Python puro
 tests/test_ha.py     en un HA real (venv), con datos inventados
 ```

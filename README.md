@@ -10,7 +10,9 @@ integración Matrículas.
 
 **Estado: fase 1, modo sombra.** Se instala y decide, pero no ejecuta nada:
 compara lo que habría hecho con lo que hacen las automatizaciones actuales.
-El diseño y las fases están en [`docs/DECISIONES.md`](docs/DECISIONES.md).
+El diseño y las fases están en [`docs/DECISIONES.md`](docs/DECISIONES.md), y lo que hay que tener
+instalado y activado (en Home Assistant y en la app de HA de cada dispositivo), en
+[`docs/REQUISITOS.md`](docs/REQUISITOS.md).
 
 ## Instalación
 
