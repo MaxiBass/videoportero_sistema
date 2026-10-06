@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.1.4 (fase 1, modo sombra). Este documento se actualiza con
+Estado: versión 0.1.5 (fase 1, modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
@@ -52,9 +52,9 @@ móvil en la integración y elegir el aparato nuevo.
 | Qué | Para qué | Si falta |
 |---|---|---|
 | Notificaciones permitidas | Recibir los avisos y el botón ABRIR | No recibe nada |
+| **BrowserMod** registrado en la app (opcional), con sus sensores de ruta y visibilidad | Abrir HA cuenta como atender, igual que en un móvil Android | Abrir la app no cuenta como atender (sí pulsar ABRIR) |
 
-La app de HA para Apple no tiene «Last used app»: abrir la app no cuenta
-como atender (sí pulsar ABRIR).
+La app de HA para Apple no tiene «Last used app».
 
 ### Dispositivo del hogar (tablet Android)
 
@@ -66,6 +66,20 @@ como atender (sí pulsar ABRIR).
 
 Ojo: si un script cierra la app de HA a la fuerza, Android no le entrega
 avisos hasta que se vuelve a abrir.
+
+## Interruptores «Avisos»
+
+Cada dispositivo tiene un interruptor `switch.videoportero_avisos_<título>`
+en su ficha (Ajustes → Dispositivos y servicios → Videoportero → el
+dispositivo). Apagado, un móvil no recibe avisos y un dispositivo del hogar
+no hace nada en la visita. Mientras la automatización siga mandando, también
+lo consulta; si el interruptor no existe, avisa igual.
+
+## Avisos en Reparaciones
+
+Si falta o se desactiva algo de lo de arriba, sale un aviso en Ajustes →
+Reparaciones con el dispositivo y lo que falta, y se quita solo al
+arreglarlo. El formulario de cada móvil dice qué ha encontrado.
 
 ## Comprobar que todo va
 

@@ -126,7 +126,8 @@
             "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
             "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
             "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
-          }
+          },
+          "description": "Found on the device: {encontrado}."
         },
         "reconfigure": {
           "title": "Edit phone",
@@ -146,7 +147,8 @@
             "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
             "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
             "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
-          }
+          },
+          "description": "Now: {encontrado}."
         }
       },
       "error": {
@@ -212,6 +214,37 @@
       "diferencias": {
         "name": "Differences with the automation"
       }
+    },
+    "switch": {
+      "avisos": {
+        "name": "Notifications"
+      }
+    }
+  },
+  "issues": {
+    "sin_app": {
+      "title": "{dispositivo}: Home Assistant app not found",
+      "description": "The selected device no longer has the Home Assistant app registered (for example, after a reinstall). Edit the device in the Videoportero integration and pick the new one."
+    },
+    "sin_servicio_avisos": {
+      "title": "{dispositivo}: no notification service",
+      "description": "{detalle} does not exist: this phone gets no notifications. Check the Home Assistant app is installed and logged in."
+    },
+    "sin_ultima_app": {
+      "title": "{dispositivo}: «Last used app» sensor missing",
+      "description": "Without it, opening the Home Assistant app during a visit is only detected through BrowserMod, later and not always. Enable it in the app: Settings → Companion app → Manage sensors → Last used app."
+    },
+    "sin_browsermod": {
+      "title": "{dispositivo}: BrowserMod sensor not found",
+      "description": "{detalle} does not exist or is disabled. Without it, opening the call view does not count as answering. Register the browser in BrowserMod again or edit the device."
+    },
+    "sin_visibilidad": {
+      "title": "{dispositivo}: BrowserMod visibility missing",
+      "description": "{detalle} does not exist or is disabled. Without it, if Home Assistant was already the last used app, opening it does not count as answering. Enable it on the BrowserMod device."
+    },
+    "sin_script": {
+      "title": "{dispositivo}: script {detalle} does not exist",
+      "description": "This home device will do nothing when a visit starts. Create the script or edit the device."
     }
   }
 }

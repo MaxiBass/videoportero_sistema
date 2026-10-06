@@ -592,6 +592,17 @@ def test_traduccion_visibilidad():
     comprobar(tr.estado(e, t(0), v, "visible", "visible", nada) == [], "ya se veía (solo atributos): nada")
 
 
+def test_llamadas_apagados():
+    print("\nDispositivos con los avisos apagados")
+    av = Avisar("visita-1", ("ana", "luis"), "Hola", "/img", True, "ABRE LA PUERTA", False)
+    comprobar([x.servicio for x in llamadas(av, SALIDAS, {"luis"})] == ["mobile_app_ana"], "un móvil apagado no recibe el aviso")
+    comprobar(llamadas(PedirNombre("lpr-x", "x", "/img", ("ana",)), SALIDAS, {"ana"}) == [], "ni la petición de nombre")
+    comprobar(llamadas(RetirarAviso("lpr-x", ("ana",)), SALIDAS, {"ana"}) == [], "ni el retirar")
+    ll = llamadas(EmpiezaVisita("visita-1", t(0), "timbre"), SALIDAS, {"salon"})
+    comprobar(not any(x.datos.get("entity_id") == "script.salon_timbre" for x in ll), "un dispositivo del hogar apagado no lanza su script")
+    comprobar(any(x.datos.get("entity_id") == "script.zoom" for x in ll), "lo demás de empezar la visita sigue igual")
+
+
 if __name__ == "__main__":
     for nombre, prueba in list(globals().items()):
         if nombre.startswith("test_") and callable(prueba):

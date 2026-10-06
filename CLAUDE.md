@@ -39,6 +39,8 @@ custom_components/videoportero/
   __init__.py     Sistema: suscripciones, motor, modo sombra
   config_flow.py  alta, opciones y subentradas «móvil» y «hogar»
   sensor.py       sensor.videoportero_visita y sensor.videoportero_diferencias
+  switch.py       interruptor «Avisos» por dispositivo (entity_id fijo: lo consulta la automatización)
+  requisitos.py   qué necesita cada dispositivo; avisos en Reparaciones
   brand/          icono (HA 2026.9 lo lee de aquí; se dibuja con docs/icono/generar.py)
 docs/DECISIONES.md  por qué es así
 docs/REQUISITOS.md  qué hay que instalar/activar en HA y en la app de HA (actualizarlo con cada cambio)

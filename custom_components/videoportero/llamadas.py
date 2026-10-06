@@ -8,7 +8,7 @@ la fase 2 paneles, tablets y móviles no noten nada (DECISIONES §6).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -74,7 +74,11 @@ def _texto(entidad: str, valor: str) -> Llamada:
     return Llamada("input_text", "set_value", {"entity_id": entidad, "value": valor})
 
 
-def llamadas(decision: Decision, s: Salidas) -> list[Llamada]:
+def llamadas(decision: Decision, s: Salidas, apagados: Collection[str] = ()) -> list[Llamada]:
+    """`apagados`: dispositivos con su interruptor de avisos apagado. Un móvil
+    apagado no recibe nada; un dispositivo del hogar apagado no lanza sus
+    scripts. Lo que decide el motor (quién atendió, el aviso de cierre) no
+    cambia (DECISIONES §11)."""
     if isinstance(decision, EmpiezaVisita):
         res = []
         if s.banner:
@@ -82,7 +86,9 @@ def llamadas(decision: Decision, s: Salidas) -> list[Llamada]:
         if s.marca_audio:
             res.append(_texto(s.marca_audio, ""))
         res += [_encender(script) for script in s.al_empezar]
-        for hogar in s.hogar.values():
+        for ident, hogar in s.hogar.items():
+            if ident in apagados:
+                continue
             res += [_encender(script, variables={"origen": "vto"}) for script in hogar.scripts_inicio]
         return res
 
@@ -90,7 +96,7 @@ def llamadas(decision: Decision, s: Salidas) -> list[Llamada]:
         res = []
         for ident in decision.destinatarios:
             movil = s.moviles.get(ident)
-            if movil is None:
+            if movil is None or ident in apagados:
                 continue
             datos: dict[str, Any] = {"image": decision.imagen, "clickAction": movil.vista}
             if movil.boton_abrir:
@@ -115,7 +121,7 @@ def llamadas(decision: Decision, s: Salidas) -> list[Llamada]:
         res = []
         for ident in decision.destinatarios:
             movil = s.moviles.get(ident)
-            if movil is None:
+            if movil is None or ident in apagados:
                 continue
             res.append(
                 Llamada(
@@ -156,7 +162,7 @@ def llamadas(decision: Decision, s: Salidas) -> list[Llamada]:
         return [
             Llamada("notify", s.moviles[i].notify, {"message": "clear_notification", "data": {"tag": decision.tag}})
             for i in decision.destinatarios
-            if i in s.moviles
+            if i in s.moviles and i not in apagados
         ]
 
     if isinstance(decision, AbrirPuerta):

@@ -23,6 +23,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr, selector
 
 from .configuracion import app_ha
+from .requisitos import encontrado
 from .const import (
     CONF_ABRIR_AUTOMATICA,
     CONF_ABRIR_BOTON,
@@ -243,7 +244,10 @@ class MovilFlow(_FlujoDispositivo):
         return self.async_show_form(
             step_id="detalles",
             data_schema=self.add_suggested_values_to_schema(esquema_movil({}, con_aparato=False), sugerido),
-            description_placeholders={"aparato": self._nombre_aparato(self._aparato) or ""},
+            description_placeholders={
+                "aparato": self._nombre_aparato(self._aparato) or "",
+                "encontrado": encontrado(self.hass, app, None),
+            },
         )
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
@@ -259,7 +263,12 @@ class MovilFlow(_FlujoDispositivo):
                     self._get_entry(), sub, title=self._titulo(user_input), data=user_input
                 )
         return self.async_show_form(
-            step_id="reconfigure", data_schema=esquema_movil(sub.data, con_aparato=True), errors=errores
+            step_id="reconfigure",
+            data_schema=esquema_movil(sub.data, con_aparato=True),
+            errors=errores,
+            description_placeholders={
+                "encontrado": encontrado(self.hass, app_ha(self.hass, sub.data.get(CONF_APARATO)), sub.data.get(CONF_PANEL))
+            },
         )
 
 

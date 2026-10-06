@@ -28,6 +28,7 @@ from homeassistant.util import dt as dt_util
 
 from . import traduccion as tr
 from .configuracion import Casa, leer
+from .requisitos import revisar_requisitos
 from .const import EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
 from .historial import Historial, visita_a_dict
 from .llamadas import llamadas
@@ -35,7 +36,7 @@ from .motor import Banner, Decision, Evento, Motor, TerminaVisita, Tick, Visita
 from .sombra import Comparador, alcance, como_la_automatizacion
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 DOMINIOS_COMPARADOS = ("notify", "script", "switch", "input_text")
 
 type EntradaVideoportero = ConfigEntry[Sistema]
@@ -80,6 +81,11 @@ class Sistema:
         self._contextos: dict[str, tuple[float, set[str]]] = {}
         self._alcance = alcance(self.casa.salidas)
         self._emparejadas = 0
+        # Interruptores «Avisos» (switch.py): dispositivos apagados y las
+        # entidades, para añadir o quitar las de dispositivos nuevos o borrados.
+        self.apagados: set[str] = set()
+        self.interruptores: dict[str, Any] = {}
+        self.anadir_interruptores: Any = None
 
     # ── Arranque y configuración ──
 
@@ -89,6 +95,7 @@ class Sistema:
             self.ultima = self.historial.visitas[-1]
         self._estado_inicial()
         await self._suscribir()
+        revisar_requisitos(self.hass, self.entry)
 
     def _leer(self, entidad: str) -> str | None:
         estado = self.hass.states.get(entidad) if entidad else None
@@ -106,7 +113,29 @@ class Sistema:
         self.motor.cambiar_dispositivos(self.casa.dispositivos)
         self._desuscribir()
         await self._suscribir()
+        self._cambiar_interruptores()
+        revisar_requisitos(self.hass, self.entry)
         self._avisar_cambio()
+
+    def _cambiar_interruptores(self) -> None:
+        """Interruptor para cada dispositivo nuevo; fuera los de los borrados."""
+        if self.anadir_interruptores is not None:
+            self.anadir_interruptores(self.entry.subentries.values())
+        for ident in [i for i in self.interruptores if i not in self.entry.subentries]:
+            interruptor = self.interruptores.pop(ident)
+            self.apagados.discard(ident)
+            self.hass.async_create_task(interruptor.async_remove(force_remove=True))
+
+    @callback
+    def _al_revisar_requisitos(self, _ahora: datetime) -> None:
+        revisar_requisitos(self.hass, self.entry)
+
+    @callback
+    def poner_avisos(self, ident: str, encendido: bool) -> None:
+        if encendido:
+            self.apagados.discard(ident)
+        else:
+            self.apagados.add(ident)
 
     async def _suscribir(self) -> None:
         e = self.casa.entradas
@@ -119,6 +148,7 @@ class Sistema:
             self._quitar.append(self.hass.bus.async_listen(EVENT_AUTOMATION_TRIGGERED, self._al_automatizacion))
             self._quitar.append(self.hass.bus.async_listen(EVENT_CALL_SERVICE, self._al_llamada))
         self._quitar.append(async_track_time_interval(self.hass, self._al_revisar, timedelta(seconds=10)))
+        self._quitar.append(async_track_time_interval(self.hass, self._al_revisar_requisitos, timedelta(minutes=30)))
         if e.camara_caras:
             await self._suscribir_caras()
 
@@ -206,7 +236,7 @@ class Sistema:
             tag = fin.tag if fin else None
         if self.casa.comparar:
             for d in como_la_automatizacion(decisiones, self.motor.dispositivos):
-                for ll in llamadas(d, self.casa.salidas):
+                for ll in llamadas(d, self.casa.salidas, self.apagados):
                     self.comparador.esperada(hora.timestamp(), ll, tag)
         for d in decisiones:
             _LOGGER.debug("Decisión (sombra): %s", d)

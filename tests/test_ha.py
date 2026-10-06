@@ -275,6 +275,47 @@ async def recorrido(directorio: Path) -> None:
         comprobar(hass.states.get("sensor.videoportero_diferencias").state == str(len(resumenes)),
                   "el sensor cuenta las diferencias")
 
+        # ── Interruptores de avisos y Reparaciones ──
+        print("\nInterruptores «Avisos» y Reparaciones")
+        from homeassistant.helpers import issue_registry as ir
+
+        interruptores = sorted(e.entity_id for e in hass.states.async_all("switch") if e.entity_id.startswith("switch.videoportero_avisos_"))
+        comprobar(len(interruptores) == 4 and "switch.videoportero_avisos_ana_movil_de_ana" in interruptores,
+                  f"un interruptor por dispositivo, con entity_id fijo ({interruptores})")
+        comprobar(all(hass.states.get(i).state == "on" for i in interruptores), "encendidos por defecto")
+        await hass.services.async_call("switch", "turn_off", {"entity_id": "switch.videoportero_avisos_ana_movil_de_ana"}, blocking=True)
+        await hass.services.async_call("switch", "turn_off", {"entity_id": "switch.videoportero_avisos_tablet_salon_tableta"}, blocking=True)
+        await hass.async_block_till_done()
+        ana_id = next(i for i, d in sistema.motor.dispositivos.items() if d.nombre == "Ana" and sistema.casa.salidas.moviles.get(i) and sistema.casa.salidas.moviles[i].notify == "mobile_app_movil_de_ana")
+        comprobar(ana_id in sistema.apagados, "apagar el interruptor apaga ese dispositivo")
+        sistema.comparador.esperadas.clear()
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        servicios = sorted({a.clave[1] for a in sistema.comparador.esperadas if a.clave[0] == "notify"})
+        comprobar("mobile_app_movil_de_ana" not in servicios and "mobile_app_movil_de_luis" in servicios,
+                  f"en la visita, Ana no recibe avisos y Luis sí ({servicios})")
+        comprobar(not any(a.clave[2] == "script.salon_timbre" for a in sistema.comparador.esperadas),
+                  "y la tablet apagada no lanza su script")
+        await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.videoportero_avisos_ana_movil_de_ana"}, blocking=True)
+        await hass.async_block_till_done()
+        comprobar(ana_id not in sistema.apagados, "encenderlo lo vuelve a activar")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        sistema.comparador.esperadas.clear()
+
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(any(i.endswith("_sin_servicio_avisos") for i in avisos), f"avisa de que falta el servicio de avisos ({sorted(avisos)})")
+        comprobar(any(i.endswith("_sin_browsermod") for i in avisos), "y de que falta el sensor de BrowserMod de Luis")
+        async def nada(call):
+            return None
+        for s in ("mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"):
+            hass.services.async_register("notify", s, nada)
+        hass.states.async_set("sensor.browsermod_luis_browser_path", "/marco")
+        sistema._al_revisar_requisitos(None)
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(not any(i.endswith("_sin_servicio_avisos") or i.endswith("_sin_browsermod") for i in avisos),
+                  f"al arreglarlo, los avisos desaparecen solos ({sorted(avisos)})")
+
         # ── Cambios en caliente ──
         print("\nCambiar y quitar dispositivos, y opciones")
         hogar_sub = next(s for s in entrada.subentries.values() if s.subentry_type == "hogar")
@@ -287,6 +328,12 @@ async def recorrido(directorio: Path) -> None:
         hass.config_entries.async_remove_subentry(entrada, hogar_sub.subentry_id)
         await hass.async_block_till_done()
         comprobar(len(sistema.motor.dispositivos) == 3, "quitar un dispositivo también")
+        comprobar(hass.states.get("switch.videoportero_avisos_tablet_salon_tableta") is None, "y su interruptor desaparece")
+        r = await sub.async_init((entrada.entry_id, "hogar"), context={"source": "user"})
+        r = await sub.async_configure(r["flow_id"], {"nombre": "Tablet cocina"})
+        await hass.async_block_till_done()
+        comprobar(hass.states.get("switch.videoportero_avisos_tablet_cocina") is not None,
+                  "un dispositivo nuevo trae su interruptor, sin reiniciar")
         r = await hass.config_entries.options.async_init(entrada.entry_id)
         r = await hass.config_entries.options.async_configure(r["flow_id"], {
             "timbre": "binary_sensor.timbre", "puerta": "binary_sensor.puerta", "umbral_cara": 0.9,

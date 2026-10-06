@@ -237,3 +237,32 @@ las ve). Diseño propio, porque el repositorio es público: la placa de un
 videoportero (cámara, rejilla del altavoz y pulsador) en blanco sobre un
 cuadrado redondeado verde azulado. Se dibuja con `docs/icono/generar.py`
 (Pillow, que ya trae HA).
+
+## 11. Avisos por dispositivo, Reparaciones y el Mac (v0.1.5)
+
+Petición de Maxi (06/10/2026).
+
+- **Un interruptor «Avisos» por dispositivo** (`switch.videoportero_avisos_<título>`),
+  dentro de la ficha de cada dispositivo. Apagado, un móvil no recibe ningún
+  aviso (ni el de visita, ni el de cierre, ni la petición de nombre de
+  matrícula) y un dispositivo del hogar no lanza sus scripts. Lo que decide
+  la visita no cambia: si alguien abre HA en un móvil apagado, sigue contando
+  como que atiende. Se recuerda tras reiniciar. Se eligió un interruptor y no
+  un campo del formulario porque se cambia al momento, se puede poner en un
+  panel y automatizar (por ejemplo, apagar los de alguien que está fuera).
+  El `entity_id` se fija al crearlo con el título del dispositivo, porque la
+  automatización lo consulta mientras siga mandando; no cambia aunque luego se
+  renombre el dispositivo. La automatización avisa igual si el interruptor no
+  existe o no está disponible: un fallo de la integración nunca deja la casa
+  sin avisos.
+- **Lo que ha encontrado cada móvil** se ve en su formulario (servicio de
+  avisos, «Last used app», BrowserMod con su visibilidad), y **Reparaciones**
+  avisa si falta o se desactiva algo: el aparato de la app de HA (por
+  ejemplo, tras reinstalarla), el servicio de avisos, «Last used app», el
+  sensor de ruta o de visibilidad de BrowserMod, o un script de un
+  dispositivo del hogar. Se revisa al arrancar, al cambiar la configuración y
+  cada media hora. No se avisa de «no disponible»: el BrowserMod de un móvil
+  lo está siempre que la app de HA no está delante.
+- **El Mac** no tiene «Last used app», pero su app de HA puede tener
+  BrowserMod: con el sensor de ruta elegido en su dispositivo, abrir HA en el
+  Mac cuenta como atender, con las mismas reglas que un móvil (§4).

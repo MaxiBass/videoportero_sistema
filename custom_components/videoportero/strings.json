@@ -126,7 +126,8 @@
             "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
             "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
             "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
-          }
+          },
+          "description": "Encontrado en el aparato: {encontrado}."
         },
         "reconfigure": {
           "title": "Cambiar móvil",
@@ -146,7 +147,8 @@
             "vista": "Por ejemplo `/panel-llamada/ana?kiosk`.",
             "panel": "Opcional. Entrar en la vista de llamada cuenta como atender, también con la app ya abierta.",
             "marca": "Opcional, hasta la fase 3: el valor que escriben sus scripts de contestar (por ejemplo `ana`)."
-          }
+          },
+          "description": "Ahora: {encontrado}."
         }
       },
       "error": {
@@ -212,6 +214,37 @@
       "diferencias": {
         "name": "Diferencias con la automatización"
       }
+    },
+    "switch": {
+      "avisos": {
+        "name": "Avisos"
+      }
+    }
+  },
+  "issues": {
+    "sin_app": {
+      "title": "{dispositivo}: no se encuentra la app de HA",
+      "description": "El aparato elegido ya no tiene la app de Home Assistant registrada (por ejemplo, porque se reinstaló). Edita el dispositivo en la integración Videoportero y elige el aparato nuevo."
+    },
+    "sin_servicio_avisos": {
+      "title": "{dispositivo}: no hay servicio de avisos",
+      "description": "No existe {detalle}: este móvil no recibe los avisos. Comprueba que la app de HA esté instalada y con la sesión iniciada."
+    },
+    "sin_ultima_app": {
+      "title": "{dispositivo}: falta el sensor «Last used app»",
+      "description": "Sin él, abrir la app de HA durante una visita solo se detecta por BrowserMod, más tarde y no siempre. Actívalo en la app de HA: Ajustes → Aplicación complementaria → Gestionar sensores → Last used app."
+    },
+    "sin_browsermod": {
+      "title": "{dispositivo}: no se encuentra el sensor de BrowserMod",
+      "description": "No existe o está desactivado {detalle}. Sin él, entrar en la vista de llamada no cuenta como atender. Vuelve a registrar el navegador en BrowserMod o edita el dispositivo en la integración."
+    },
+    "sin_visibilidad": {
+      "title": "{dispositivo}: falta la visibilidad de BrowserMod",
+      "description": "No existe o está desactivado {detalle}. Sin él, si HA ya era la última app usada, abrirla no cuenta como atender. Actívalo en el dispositivo de BrowserMod."
+    },
+    "sin_script": {
+      "title": "{dispositivo}: no existe el script {detalle}",
+      "description": "Este dispositivo del hogar no hará nada al empezar la visita. Crea el script o edita el dispositivo en la integración."
     }
   }
 }
