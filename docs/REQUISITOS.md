@@ -4,14 +4,14 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.1.5 (fase 1, modo sombra). Este documento se actualiza con
+Estado: versión 0.1.6 (fase 1, modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
 
 | Qué | Para qué | Si falta |
 |---|---|---|
-| Home Assistant 2026.9 o posterior | Subentradas (dispositivos) e icono propio | No se instala o no hay icono |
+| Home Assistant 2026.10 o posterior | Subentradas (dispositivos), icono propio y enlace entre dispositivos | HACS no la instala |
 | HACS | Instalar y actualizar la integración | Habría que copiarla a mano |
 | Una integración del videoportero (por ejemplo Dahua) con un `binary_sensor` del **pulsador** (se enciende al pulsar) y otro de la **puerta** (encendido = abierta) | Empezar la visita con el timbre; saber que se ha abierto | Sin pulsador no hay visitas por timbre; sin puerta no se detecta la apertura |
 | Una **cámara** (`camera.*`) del videoportero | Foto de los avisos cuando no hay una de Frigate | Los avisos salen sin foto |
@@ -23,9 +23,11 @@ cada cambio de lo que se necesita.
 | La **app de HA** en cada móvil y tablet | Avisos, botón ABRIR y detectar quién atiende | Ese dispositivo no recibe avisos ni cuenta como atendido |
 
 Hasta la fase 3, la integración usa además los ayudantes y scripts que ya
-hay en casa (abrir, apertura automática, audio, banner y scripts al empezar
-la visita y con cada timbre). Se eligen en las opciones de la integración;
-si se borra alguno, hay que quitarlo también de ahí.
+hay en casa (abrir, apertura automática, audio, banner, scripts al empezar
+la visita y con cada timbre, y el que silencia el altavoz). Se eligen en las
+opciones de la integración; si se borra alguno, hay que quitarlo también de
+ahí. El que silencia el altavoz va en su propio campo, no entre los de «al
+empezar»: así no se lanza si alguien está hablando (DECISIONES §12).
 
 ## En la app de HA de cada dispositivo
 

@@ -89,8 +89,20 @@ async def aparato_con_app(hass, nombre: str, app_id: str, usuario: str, android:
 
 
 async def recorrido(directorio: Path) -> None:
+    import logging
+
     from homeassistant.config_entries import ConfigEntryState
 
+    # Lo que HA avisa que la integración usa y está obsoleto (p. ej. `via_device`)
+    avisos_obsoletos: list[str] = []
+
+    class Obsoletos(logging.Handler):
+        def emit(self, registro: logging.LogRecord) -> None:
+            texto = registro.getMessage()
+            if "videoportero" in texto and "deprecated" in texto:
+                avisos_obsoletos.append(texto[:200])
+
+    logging.getLogger().addHandler(Obsoletos(logging.WARNING))
     hass = await arrancar(directorio)
     try:
         await hass.async_block_till_done()
@@ -117,7 +129,8 @@ async def recorrido(directorio: Path) -> None:
         r = await fl.async_configure(r["flow_id"], {
             "abrir_boton": "script.abrir", "abrir_automatica": "switch.motor", "apertura_automatica": "input_boolean.auto",
             "audio": "input_boolean.audio", "marca_audio": "input_text.marca", "banner": "input_text.banner",
-            "al_empezar": ["script.zoom"], "al_timbre": ["script.foto"], "comparar": ["automation.visita"]})
+            "al_empezar": ["script.zoom"], "silenciar": "script.silencia", "al_timbre": ["script.foto"],
+            "comparar": ["automation.visita"]})
         comprobar(r["type"] == "create_entry", f"crea la entrada ({r.get('type')})")
         await hass.async_block_till_done()
         entrada = hass.config_entries.async_entries("videoportero")[0]
@@ -190,6 +203,8 @@ async def recorrido(directorio: Path) -> None:
                   f"habría avisado a los tres móviles ({servicios})")
         comprobar(any(a.clave[:3] == ("script", "turn_on", "script.salon_timbre") for a in esperadas),
                   "y lanzado el script de la tablet")
+        comprobar(any(a.clave[:3] == ("script", "turn_on", "script.silencia") for a in esperadas),
+                  "y silenciado el altavoz (nadie estaba hablando)")
         hass.states.async_set(sensor_luis, APP_HA)
         await hass.async_block_till_done()
         estado = hass.states.get("sensor.videoportero_visita")
@@ -315,6 +330,57 @@ async def recorrido(directorio: Path) -> None:
         avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
         comprobar(not any(i.endswith("_sin_servicio_avisos") or i.endswith("_sin_browsermod") for i in avisos),
                   f"al arreglarlo, los avisos desaparecen solos ({sorted(avisos)})")
+
+        # ── Dispositivos en el registro ──
+        print("\nDispositivos en el registro")
+        from homeassistant.helpers import device_registry as dr
+
+        registro = dr.async_get(hass)
+        principal = registro.async_get(sistema.dispositivo_id)
+        comprobar(principal is not None and principal.identifiers == {("videoportero", entrada.entry_id)},
+                  "el dispositivo principal existe desde el arranque")
+        hijos = [d for d in dr.async_entries_for_config_entry(registro, entrada.entry_id) if d.id != principal.id]
+        comprobar(len(hijos) == 4 and all(d.via_device_id == principal.id for d in hijos),
+                  f"los de cada móvil y del hogar cuelgan de él ({len(hijos)})")
+        comprobar(not avisos_obsoletos, f"sin avisos de HA por usar algo obsoleto ({avisos_obsoletos})")
+
+        # ── Conversación ──
+        print("\nMientras se habla por el videoportero")
+        import json as _json
+        from datetime import timedelta as _td
+
+        from custom_components.videoportero.motor import Tick
+
+        def cara(ident):
+            sistema._al_mqtt(type("M", (), {"payload": _json.dumps(
+                {"type": "face", "camera": "Portal", "name": "", "score": 0.0, "id": ident})})())
+
+        sistema.motor.puerta_cambio = sistema.motor.audio_cambio = None
+        hass.states.async_set("input_boolean.audio", "on")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.hablando, "encender el audio: se está hablando")
+        cara("c1")
+        comprobar(sistema.motor.visita is None, "hablando, una cara no empieza visita")
+        sistema.comparador.esperadas.clear()
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.visita is not None, "un timbre sí")
+        comprobar(not any(a.clave[2] == "script.silencia" for a in sistema.comparador.esperadas),
+                  "pero sin silenciar el altavoz: no corta la conversación")
+        sistema.motor.procesar(Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4)))
+        hass.states.async_set("input_boolean.audio", "off")
+        await hass.async_block_till_done()
+        comprobar(not sistema.motor.hablando, "colgar: ya no se habla")
+        cara("c2")
+        comprobar(sistema.motor.visita is None, "recién colgado, una cara tampoco")
+        sistema.motor.audio_cambio -= _td(seconds=61)
+        sistema.motor.puerta_cambio = None
+        cara("c3")
+        comprobar(sistema.motor.visita is not None, "al minuto de colgar, sí")
+        sistema.motor.procesar(Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4)))
+        hass.states.async_set("binary_sensor.timbre", "off")
+        sistema.comparador.esperadas.clear()
 
         # ── Cambios en caliente ──
         print("\nCambiar y quitar dispositivos, y opciones")

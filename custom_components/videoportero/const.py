@@ -24,6 +24,7 @@ CONF_AUDIO = "audio"
 CONF_MARCA_AUDIO = "marca_audio"
 CONF_BANNER = "banner"
 CONF_AL_EMPEZAR = "al_empezar"
+CONF_SILENCIAR = "silenciar"  # script que silencia el altavoz al empezar la visita
 CONF_AL_TIMBRE = "al_timbre"
 
 # Opciones de la entrada: modo sombra

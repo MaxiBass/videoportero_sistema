@@ -49,7 +49,10 @@ class SalidaHogar:
 class Salidas:
     moviles: Mapping[str, SalidaMovil] = field(default_factory=dict)
     hogar: Mapping[str, SalidaHogar] = field(default_factory=dict)
-    al_empezar: tuple[str, ...] = ()  # scripts al empezar la visita (zoom, silenciar el altavoz)
+    al_empezar: tuple[str, ...] = ()  # scripts al empezar la visita (zoom)
+    # Script que silencia el altavoz al empezar la visita, salvo que alguien
+    # esté hablando (DECISIONES §12).
+    silenciar: str = ""
     al_timbre: tuple[str, ...] = ()  # scripts con cada timbre (foto HD)
     abrir_boton: str = ""  # lo que abre con el botón ABRIR
     abrir_automatica: str = ""  # lo que abre en la apertura automática
@@ -90,6 +93,8 @@ def llamadas(decision: Decision, s: Salidas, apagados: Collection[str] = ()) -> 
             if ident in apagados:
                 continue
             res += [_encender(script, variables={"origen": "vto"}) for script in hogar.scripts_inicio]
+        if s.silenciar and decision.silenciar:
+            res.append(_encender(s.silenciar))
         return res
 
     if isinstance(decision, Avisar):

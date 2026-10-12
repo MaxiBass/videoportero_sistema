@@ -120,7 +120,7 @@ class Alcance:
 
 def alcance(salidas: Salidas) -> Alcance:
     entidades = {*salidas.al_empezar, *salidas.al_timbre, salidas.abrir_boton, salidas.abrir_automatica,
-                 salidas.banner, salidas.marca_audio}
+                 salidas.banner, salidas.marca_audio, salidas.silenciar}
     for hogar in salidas.hogar.values():
         entidades.update(hogar.scripts_inicio)
     return Alcance(

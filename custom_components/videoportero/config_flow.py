@@ -47,6 +47,7 @@ from .const import (
     CONF_PIDE_NOMBRE,
     CONF_PUERTA,
     CONF_SCRIPTS_INICIO,
+    CONF_SILENCIAR,
     CONF_TIMBRE,
     CONF_UMBRAL_CARA,
     CONF_VISTA,
@@ -97,6 +98,7 @@ def esquema_acciones(a: Mapping[str, Any]) -> vol.Schema:
             _opcional(CONF_MARCA_AUDIO, a): _entidad("input_text"),
             _opcional(CONF_BANNER, a): _entidad("input_text"),
             _opcional(CONF_AL_EMPEZAR, a): _entidad("script", multiple=True),
+            _opcional(CONF_SILENCIAR, a): _entidad("script"),
             _opcional(CONF_AL_TIMBRE, a): _entidad("script", multiple=True),
             _opcional(CONF_COMPARAR, a): _entidad("automation", multiple=True),
         }

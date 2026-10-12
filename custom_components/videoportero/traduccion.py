@@ -20,6 +20,7 @@ from .motor import (
     Abrir,
     AperturaAutomatica,
     Atendido,
+    Audio,
     Cara,
     Evento,
     Matricula,
@@ -74,10 +75,13 @@ def estado(
     if entidad == e.apertura_automatica:
         return [AperturaAutomatica(hora, nuevo == "on")]
     if entidad == e.audio:
-        if nuevo != "on":
-            return []
-        marca = (leer(e.marca_audio) or "").strip() if e.marca_audio else ""
-        return [Atendido(hora, e.marcas.get(marca), POR_AUDIO)]
+        # Cualquier cambio cuenta para saber si se está hablando y desde
+        # cuándo; encenderlo, además, es atender.
+        eventos: list[Evento] = [Audio(hora, nuevo == "on")]
+        if nuevo == "on":
+            marca = (leer(e.marca_audio) or "").strip() if e.marca_audio else ""
+            eventos.append(Atendido(hora, e.marcas.get(marca), POR_AUDIO))
+        return eventos
     if entidad in e.app:
         return [Atendido(hora, e.app[entidad], POR_APP)] if nuevo == APP_HA else []
     if entidad in e.panel:

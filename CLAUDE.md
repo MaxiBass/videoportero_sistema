@@ -68,7 +68,7 @@ python3 tests/test_motor.py
 Las comparaciones con la casa (privadas):
 
 ```bash
-python3 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.9.2 paho-mqtt
+/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.10.1 paho-mqtt
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/diferencial.py 100 1
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/historial.py
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase1/sombra_local.py 40 1

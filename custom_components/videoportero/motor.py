@@ -81,6 +81,10 @@ class Ajustes:
     # Si la puerta se abre hasta este tiempo después de pulsar ABRIR, se
     # atribuye a quien lo pulsó.
     ventana_abrir: timedelta = timedelta(seconds=60)
+    # Tras colgar o tras cerrarse la puerta, una cara no empieza visita
+    # durante este tiempo: la persona con la que se hablaba sigue delante
+    # (DECISIONES §12).
+    pausa_caras: timedelta = timedelta(seconds=60)
     imagen_camara: str = "/api/camera_proxy/camera.videoportero"
     imagen_frigate: str = "/api/frigate/notifications/{}/snapshot.jpg"
 
@@ -156,11 +160,22 @@ class AperturaAutomatica:
 
 
 @dataclass(frozen=True)
+class Audio:
+    """El audio del videoportero cambia: encendido es que alguien está hablando.
+
+    Encenderlo además cuenta como atender (llega aparte, como `Atendido`).
+    """
+
+    hora: datetime
+    encendido: bool
+
+
+@dataclass(frozen=True)
 class Tick:
     hora: datetime
 
 
-Evento = Union[Timbre, Puerta, Cara, Matricula, Atendido, Abrir, AperturaAutomatica, Tick]
+Evento = Union[Timbre, Puerta, Cara, Matricula, Atendido, Abrir, AperturaAutomatica, Audio, Tick]
 
 
 # ── Decisiones (salida) ──────────────────────────────────────────────
@@ -171,6 +186,9 @@ class EmpiezaVisita:
     tag: str
     hora: datetime
     motivo: str
+    # Silenciar el altavoz al empezar, salvo que alguien esté hablando: no se
+    # corta una conversación en curso (DECISIONES §12).
+    silenciar: bool = True
 
 
 @dataclass(frozen=True)
@@ -271,12 +289,18 @@ class Motor:
         *,
         puerta_abierta: bool | None = False,
         apertura_automatica: bool = False,
+        hablando: bool = False,
     ) -> None:
         self.ajustes = ajustes or Ajustes()
         self.dispositivos: dict[str, Dispositivo] = {}
         self.cambiar_dispositivos(dispositivos)
         self.puerta_abierta = puerta_abierta
         self.apertura_automatica = apertura_automatica
+        self.hablando = hablando
+        # Último cambio de estado de la puerta y del audio (el `last_changed`
+        # de sus entidades): cuentan para la pausa de las caras.
+        self.puerta_cambio: datetime | None = None
+        self.audio_cambio: datetime | None = None
         self.visita: Visita | None = None
         self._banner_hasta: datetime | None = None
         self._ultimo_abrir: Abrir | None = None
@@ -303,6 +327,7 @@ class Motor:
             # de la automatización es off → on).
             se_abre = self.puerta_abierta is False and ev.abierta is True
             self.puerta_abierta = ev.abierta
+            self.puerta_cambio = ev.hora
             if se_abre and self.visita is not None:
                 quien = None
                 abrir = self._ultimo_abrir
@@ -316,6 +341,9 @@ class Motor:
                 salida.append(AbrirPuerta(automatica=False, quien=ev.quien))
         elif isinstance(ev, AperturaAutomatica):
             self.apertura_automatica = ev.activa
+        elif isinstance(ev, Audio):
+            self.hablando = ev.encendido
+            self.audio_cambio = ev.hora
         elif isinstance(ev, Atendido):
             if self.visita is not None:
                 self._paso(ev, salida)
@@ -342,14 +370,24 @@ class Motor:
             return ev.datos.get("avisar") == True  # noqa: E712  como el filtro event_data del disparador
         # Una cara de un objeto que Frigate aún no cuenta como persona puede
         # ser una detección falsa (04/10, 18:31): no empieza visita.
-        return ev.confirmada
+        if not ev.confirmada:
+            return False
+        # Mientras se habla, y un rato después de colgar o de cerrarse la
+        # puerta, la cara es la de la persona con la que se habla (08/10,
+        # 12:37: cada cara empezaba otra visita y cortaba el audio).
+        if self.hablando:
+            return False
+        return not any(
+            cambio is not None and ev.hora - cambio < self.ajustes.pausa_caras
+            for cambio in (self.audio_cambio, self.puerta_cambio)
+        )
 
     def _abrir_visita(self, ev: Timbre | Cara | Matricula, salida: list[Decision]) -> None:
         motivo = {Timbre: "timbre", Cara: "cara", Matricula: "matricula"}[type(ev)]
         tag = "visita-" + ev.hora.strftime("%Y%m%d%H%M%S")
         self.visita = Visita(tag=tag, inicio=ev.hora, motivo=motivo, imagen=self.ajustes.imagen_camara)
         self._banner_hasta = None  # empezar la visita quita el banner
-        salida.append(EmpiezaVisita(tag, ev.hora, motivo))
+        salida.append(EmpiezaVisita(tag, ev.hora, motivo, silenciar=not self.hablando))
 
     def _vencer(self, hora: datetime, salida: list[Decision]) -> None:
         v = self.visita

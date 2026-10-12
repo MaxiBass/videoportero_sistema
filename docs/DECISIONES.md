@@ -75,6 +75,9 @@ variables de la automatización. Resumen:
   bloquear un timbre. Se aplicó igual en la automatización el mismo día, así
   que no es una diferencia entre las dos. Sin sensor configurado, toda cara
   cuenta.
+- Tampoco empieza visita una cara mientras se habla por el videoportero ni
+  en el minuto siguiente a colgar o a cerrarse la puerta, y empezar una
+  visita no silencia si alguien está hablando (§12).
 - Tope de 200 eventos por visita, como el `repeat`.
 - **Cuándo un móvil cuenta como que atiende** (06/10/2026, también en la
   automatización, así que no es una diferencia entre las dos). Vale
@@ -266,3 +269,43 @@ Petición de Maxi (06/10/2026).
 - **El Mac** no tiene «Last used app», pero su app de HA puede tener
   BrowserMod: con el sensor de ruta elegido en su dispositivo, abrir HA en el
   Mac cuenta como atender, con las mismas reglas que un móvil (§4).
+
+## 12. Conversación sin cortes (v0.1.6)
+
+Petición de Maxi (12/10/2026), también en la automatización, así que no es
+una diferencia entre las dos.
+
+El 08/10/2026 la persona siguió delante de la cámara después de atenderla.
+La visita termina en cuanto alguien atiende (para no perder un timbre), así
+que cada cara nueva empezaba otra visita: aviso con sonido a todos y
+«silenciar el altavoz», que cortaba la conversación. Hubo 4 visitas de más
+en un minuto y hubo que volver a pulsar «hablar» tres veces.
+
+- **Una cara no empieza visita mientras se habla** por el videoportero (el
+  interruptor del audio encendido), **ni durante el minuto siguiente a colgar
+  o a cerrarse la puerta** (con la puerta abierta ya no empezaba). Se cuenta
+  desde el último cambio de esas entidades, como su `last_changed`. El timbre
+  y las matrículas siguen empezando visita como siempre: un timbre nunca se
+  pierde y un coche autorizado sigue abriendo.
+- **Empezar una visita no silencia el altavoz si alguien está hablando.** El
+  script de silenciar va en su propia opción («Script que silencia el
+  altavoz») y no entre los de «al empezar», para poder saltarlo.
+- En la automatización, el silenciado de seguridad pasa de 10 a 5 minutos:
+  como empezar una visita ya no silencia mientras se habla, un audio olvidado
+  solo lo cierra ese silenciado. Las conversaciones del último mes duraron
+  24 s como mucho.
+
+Se descartaron, con los datos de un mes (46 visitas):
+
+- **3 minutos tras cualquier visita atendida.** Habría cubierto también
+  atender solo mirando la app con la persona aún delante, pero Maxi prefirió
+  no bloquear tanto. Ese caso solo se dio el 08/10 a las 12:37:42, y ahí el
+  timbre sonó 2 s después, así que el aviso habría llegado igual.
+- **El id del objeto de Frigate** (la misma persona no empieza otra visita).
+  Frigate pierde a la persona unos segundos y la vuelve a ver con otro id en
+  1 de cada 3 visitas, a menudo al acercarse a llamar: justo así empezó la
+  segunda visita del 08/10.
+
+En el último mes ninguna cara llegó a menos de un minuto de colgar o de
+cerrarse la puerta (salvo las del 08/10), así que la pausa no habría
+bloqueado ninguna visita real.

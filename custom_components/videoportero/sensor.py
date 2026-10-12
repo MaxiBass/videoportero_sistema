@@ -6,11 +6,10 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import EntradaVideoportero, Sistema
+from . import EntradaVideoportero, Sistema, dispositivo_principal
 from .const import DOMAIN, SENAL_CAMBIO
 
 ESTADOS_VISITA = ["sin_visita", "en_curso", "atendida", "abierta_automaticamente"]
@@ -35,13 +34,7 @@ class EntidadVideoportero(SensorEntity):
         self.entity_id = f"sensor.{DOMAIN}_{clave}"
         self._attr_unique_id = f"{entry.entry_id}_{clave}"
         self._attr_translation_key = clave
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="Videoportero",
-            manufacturer="Videoportero",
-            model="Visitas al videoportero",
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = dispositivo_principal(entry)
         self._sistema = sistema
 
     async def async_added_to_hass(self) -> None:

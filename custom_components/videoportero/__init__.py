@@ -18,6 +18,7 @@ from homeassistant.components.automation import EVENT_AUTOMATION_TRIGGERED
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_CALL_SERVICE, Platform
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_track_point_in_time,
@@ -29,7 +30,7 @@ from homeassistant.util import dt as dt_util
 from . import traduccion as tr
 from .configuracion import Casa, leer
 from .requisitos import revisar_requisitos
-from .const import EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
+from .const import DOMAIN, EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
 from .historial import Historial, visita_a_dict
 from .llamadas import llamadas
 from .motor import Banner, Decision, Evento, Motor, TerminaVisita, Tick, Visita
@@ -44,6 +45,13 @@ type EntradaVideoportero = ConfigEntry[Sistema]
 
 async def async_setup_entry(hass: HomeAssistant, entry: EntradaVideoportero) -> bool:
     sistema = Sistema(hass, entry)
+    # El dispositivo principal, antes que las plataformas: los de cada móvil y
+    # del hogar cuelgan de él por su id (switch.py).
+    sistema.dispositivo_id = (
+        dr.async_get(hass)
+        .async_get_or_create(config_entry_id=entry.entry_id, **dispositivo_principal(entry))
+        .id
+    )
     await sistema.iniciar()
     entry.runtime_data = sistema
     # Añadir, cambiar o quitar un dispositivo (subentrada) o las opciones no
@@ -51,6 +59,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: EntradaVideoportero) -> 
     entry.async_on_unload(entry.add_update_listener(_al_cambiar_configuracion))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def dispositivo_principal(entry: ConfigEntry) -> dr.DeviceInfo:
+    return dr.DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Videoportero",
+        manufacturer="Videoportero",
+        model="Visitas al videoportero",
+        entry_type=dr.DeviceEntryType.SERVICE,
+    )
 
 
 async def _al_cambiar_configuracion(hass: HomeAssistant, entry: EntradaVideoportero) -> None:
@@ -86,6 +104,7 @@ class Sistema:
         self.apagados: set[str] = set()
         self.interruptores: dict[str, Any] = {}
         self.anadir_interruptores: Any = None
+        self.dispositivo_id: str | None = None
 
     # ── Arranque y configuración ──
 
@@ -105,6 +124,14 @@ class Sistema:
         e = self.casa.entradas
         self.motor.puerta_abierta = {"on": True, "off": False}.get(self._leer(e.puerta) or "")
         self.motor.apertura_automatica = self._leer(e.apertura_automatica) == "on"
+        self.motor.hablando = self._leer(e.audio) == "on"
+        # Desde cuándo están así, para la pausa de las caras (DECISIONES §12)
+        self.motor.puerta_cambio = self._cambio(e.puerta)
+        self.motor.audio_cambio = self._cambio(e.audio)
+
+    def _cambio(self, entidad: str) -> datetime | None:
+        estado = self.hass.states.get(entidad) if entidad else None
+        return dt_util.as_local(estado.last_changed) if estado else None
 
     async def cambiar_configuracion(self) -> None:
         self.casa = leer(self.hass, self.entry)

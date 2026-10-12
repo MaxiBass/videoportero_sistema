@@ -34,12 +34,14 @@
           "marca_audio": "Quién contestó con audio",
           "banner": "Texto del banner",
           "al_empezar": "Scripts al empezar la visita",
+          "silenciar": "Script que silencia el altavoz",
           "al_timbre": "Scripts con cada timbre",
           "comparar": "Automatizaciones con las que comparar"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
-          "al_empezar": "Por ejemplo, el zoom de la cámara y silenciar el altavoz. Los de las tablets van en cada dispositivo del hogar.",
+          "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
+          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
           "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
         }
       }
@@ -83,12 +85,14 @@
           "marca_audio": "Quién contestó con audio",
           "banner": "Texto del banner",
           "al_empezar": "Scripts al empezar la visita",
+          "silenciar": "Script que silencia el altavoz",
           "al_timbre": "Scripts con cada timbre",
           "comparar": "Automatizaciones con las que comparar"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
-          "al_empezar": "Por ejemplo, el zoom de la cámara y silenciar el altavoz. Los de las tablets van en cada dispositivo del hogar.",
+          "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
+          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
           "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
         }
       }

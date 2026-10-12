@@ -45,6 +45,7 @@ from custom_components.videoportero.motor import (  # noqa: E402
     Ajustes,
     AperturaAutomatica,
     Atendido,
+    Audio,
     Avisar,
     Banner,
     Cara,
@@ -169,7 +170,8 @@ def test_inicio():
     m = motor()
     m.procesar(Puerta(t(0), True))
     m.procesar(Puerta(t(1), False))
-    comprobar(de(EmpiezaVisita, m.procesar(Cara(t(2), "", 0.2, "c1"))), "cerrada otra vez, la cara sí")
+    comprobar(not m.procesar(Cara(t(2), "", 0.2, "c1")), "recién cerrada, la cara aún no (pausa de 1 min)")
+    comprobar(de(EmpiezaVisita, m.procesar(Cara(t(61), "", 0.2, "c1"))), "cerrada hace 1 min, la cara sí")
 
 
 def test_dentro_todo_cuenta():
@@ -424,7 +426,8 @@ SALIDAS = Salidas(
         "luis": SalidaMovil("mobile_app_luis", "/llamada/luis?kiosk", boton_abrir=False),
     },
     hogar={"salon": SalidaHogar(("script.salon_timbre",))},
-    al_empezar=("script.zoom", "script.silencia"),
+    al_empezar=("script.zoom",),
+    silenciar="script.silencia",
     al_timbre=("script.foto",),
     abrir_boton="script.abrir",
     abrir_automatica="switch.motor",
@@ -440,9 +443,12 @@ def test_llamadas():
         Llamada("input_text", "set_value", {"entity_id": "input_text.estado", "value": ""}),
         Llamada("input_text", "set_value", {"entity_id": "input_text.quien", "value": ""}),
         Llamada("script", "turn_on", {"entity_id": "script.zoom"}),
-        Llamada("script", "turn_on", {"entity_id": "script.silencia"}),
         Llamada("script", "turn_on", {"entity_id": "script.salon_timbre", "variables": {"origen": "vto"}}),
+        Llamada("script", "turn_on", {"entity_id": "script.silencia"}),
     ], f"al empezar: {ll}")
+    ll = llamadas(EmpiezaVisita("visita-1", t(0), "timbre", silenciar=False), SALIDAS)
+    comprobar(not any(x.datos.get("entity_id") == "script.silencia" for x in ll) and len(ll) == 4,
+              "al empezar con alguien hablando: todo menos silenciar")
     av = Avisar("visita-1", ("ana", "luis", "nadie"), "Hola", "/img", True, "ABRE LA PUERTA", False)
     ll = llamadas(av, SALIDAS)
     comprobar([x.servicio for x in ll] == ["mobile_app_ana", "mobile_app_luis"], "un notify por móvil conocido")
@@ -518,9 +524,13 @@ def test_traduccion():
     comprobar(tr.estado(E, t(0), "sensor.salon_path", "/videoportero/a", "/videoportero/b", nada) == [],
               "moverse dentro de la vista de llamada no vuelve a contar")
     comprobar(tr.estado(E, t(0), "input_boolean.audio", "off", "on", {"input_text.marca": "ana"}.get)
-              == [Atendido(t(0), "ana", POR_AUDIO)], "audio con la marca de quien contesta")
+              == [Audio(t(0), True), Atendido(t(0), "ana", POR_AUDIO)], "audio con la marca de quien contesta")
     comprobar(tr.estado(E, t(0), "input_boolean.audio", "off", "on", {"input_text.marca": ""}.get)
-              == [Atendido(t(0), None, POR_AUDIO)], "audio sin marca: no se sabe quién")
+              == [Audio(t(0), True), Atendido(t(0), None, POR_AUDIO)], "audio sin marca: no se sabe quién")
+    comprobar(tr.estado(E, t(0), "input_boolean.audio", "on", "off", nada) == [Audio(t(0), False)],
+              "colgar: solo cuenta para saber que ya no se habla")
+    comprobar(tr.estado(E, t(0), "input_boolean.audio", "off", "unavailable", nada) == [Audio(t(0), False)],
+              "audio no disponible: no se está hablando")
     comprobar(tr.cara(E, t(0), {"type": "face", "camera": "Portal", "name": "Ana", "score": 0.97, "id": "x"})
               == [Cara(t(0), "Ana", 0.97, "x")], "cara de la cámara")
     comprobar(tr.cara(E, t(0), {"type": "face", "camera": "Otra", "name": "Ana", "score": 0.97, "id": "x"}) == [],
@@ -590,6 +600,65 @@ def test_traduccion_visibilidad():
               "al reconectar BrowserMod ya visible: atiende")
     comprobar(tr.estado(e, t(0), v, "visible", "hidden", nada) == [], "dejar de verse: nada")
     comprobar(tr.estado(e, t(0), v, "visible", "visible", nada) == [], "ya se veía (solo atributos): nada")
+
+
+def test_conversacion():
+    print("\nMientras se habla por el videoportero (DECISIONES §12)")
+    m = motor()
+    m.procesar(Cara(t(0), "", 0.0, "c1"))
+    m.procesar(Audio(t(5), True))
+    d = m.procesar(Atendido(t(5), "ana", POR_AUDIO))
+    comprobar(de(TerminaVisita, d) and m.visita is None, "contestar con audio cierra la visita")
+    comprobar(m.procesar(Cara(t(12), "", 0.0, "c2")) == [], "hablando, una cara no empieza otra visita")
+    comprobar(not de(EmpiezaVisita, m.procesar(Cara(t(300), "Luis", 0.99, "c2"))) and m.visita is None,
+              "ni aunque lleve mucho rato hablando")
+    comprobar(m.procesar(Matricula(t(301), placa(avisar=True))) and m.visita is not None,
+              "una matrícula sí")
+    comprobar(m.procesar(Tick(t(600))) and m.visita is None, "(se cierra por tiempo)")
+    d = m.procesar(Timbre(t(601)))
+    empieza = de(EmpiezaVisita, d)
+    comprobar(empieza and empieza[0].silenciar is False, "el timbre también, pero sin silenciar: no corta la conversación")
+    comprobar(not any(x.datos.get("entity_id") == "script.silencia" for x in llamadas(empieza[0], SALIDAS)),
+              "ni lanza el script de silenciar")
+    m.procesar(Tick(t(900)))
+    m.procesar(Audio(t(1000), False))
+    comprobar(m.procesar(Cara(t(1001), "", 0.0, "c3")) == [], "recién colgado, la cara aún no")
+    comprobar(m.procesar(Cara(t(1059.9), "", 0.0, "c3")) == [], "ni a los 59,9 s")
+    d = m.procesar(Cara(t(1060), "", 0.0, "c3"))
+    comprobar(de(EmpiezaVisita, d) and de(EmpiezaVisita, d)[0].silenciar is True, "al minuto de colgar, sí (y silencia)")
+    m = motor(hablando=True)
+    m.procesar(Timbre(t(0)))
+    comprobar(m.procesar(Cara(t(1), "Ana", 0.99, "c1")) and m.visita.persona == "Ana",
+              "dentro de una visita las caras cuentan igual, aunque se hable")
+
+
+def test_conversacion_08_10():
+    print("\nLa visita del 08/10 a las 12:37 (cada cara empezaba otra visita y cortaba el audio)")
+    m = motor()
+    inicios = []
+    silencios = []
+
+    def paso(ev):
+        for d in m.procesar(ev):
+            if isinstance(d, EmpiezaVisita):
+                inicios.append(d.hora)
+                silencios.append(d.silenciar)
+
+    paso(Cara(t(0), "", 0.0, "a"))  # 12:37:27
+    paso(Atendido(t(8), "ana", POR_APP))  # abre HA
+    paso(Cara(t(15), "", 0.0, "b"))  # 12:37:42: ni habla ni ha abierto: visita nueva
+    paso(Timbre(t(17)))
+    paso(Audio(t(22), True))
+    paso(Atendido(t(22), "ana", POR_AUDIO))  # pulsa hablar
+    for s in (29, 42, 53):  # las caras que cortaban el audio
+        paso(Cara(t(s), "", 0.0, "b"))
+    paso(Puerta(t(65), True))
+    paso(Audio(t(79), False))  # cuelga
+    paso(Puerta(t(93), False))
+    paso(Cara(t(120), "", 0.0, "b"))  # sigue delante, 27 s tras cerrarse la puerta
+    comprobar([round((h - T0).total_seconds()) for h in inicios] == [0, 15],
+              f"solo la primera y la de las 12:37:42 (inicios: {[str(h.time()) for h in inicios]})")
+    comprobar(all(silencios), "y ninguna corta el audio: las dos empiezan sin nadie hablando")
 
 
 def test_llamadas_apagados():

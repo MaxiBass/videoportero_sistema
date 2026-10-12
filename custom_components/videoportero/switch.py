@@ -62,7 +62,9 @@ class Avisos(SwitchEntity, RestoreEntity):
             name=sub.title,
             manufacturer="Videoportero",
             model="Móvil" if sub.subentry_type == SUB_MOVIL else "Dispositivo del hogar",
-            via_device=(DOMAIN, entry.entry_id),
+            # Colgado del dispositivo principal por su id: `via_device` con
+            # identificadores está obsoleto desde HA 2026.10.
+            via_device_id=sistema.dispositivo_id,
             entry_type=DeviceEntryType.SERVICE,
         )
         self._attr_is_on = True
