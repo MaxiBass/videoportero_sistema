@@ -48,8 +48,8 @@ class EntidadVideoportero(SensorEntity):
 class SensorVisita(EntidadVideoportero):
     """En curso, atendida o abierta (mientras dura el banner) o sin visita.
 
-    En la fase 1 refleja lo que ve la integración en sombra; la casa sigue
-    mandando con la automatización.
+    En sombra refleja lo que ve la integración mientras manda la
+    automatización; activa, lo que hace ella.
     """
 
     _attr_device_class = SensorDeviceClass.ENUM
@@ -64,9 +64,14 @@ class SensorVisita(EntidadVideoportero):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        v = self._sistema.motor.visita
+        s = self._sistema
+        # Quién manda y, si es la integración, cómo van sus llamadas
+        modo: dict[str, Any] = {"modo": "activa" if s.casa.activa else "sombra"}
+        if s.casa.activa:
+            modo.update(llamadas_hechas=s.hechas, llamadas_fallidas=s.fallidas)
+        v = s.motor.visita
         if v is not None:
-            return {
+            return modo | {
                 "tag": v.tag,
                 "inicio": v.inicio.isoformat(),
                 "motivo": v.motivo,
@@ -74,10 +79,12 @@ class SensorVisita(EntidadVideoportero):
                 "persona": v.persona or None,
                 "timbres": len(v.timbres),
             }
-        ultima = self._sistema.ultima
+        ultima = s.ultima
         if not ultima:
-            return {}
-        return {f"ultima_{k}": ultima.get(k) for k in ("inicio", "motivo", "estado", "coche", "persona", "atendida_por", "como")}
+            return modo
+        return modo | {
+            f"ultima_{k}": ultima.get(k) for k in ("inicio", "motivo", "estado", "coche", "persona", "atendida_por", "como")
+        }
 
 
 class SensorDiferencias(EntidadVideoportero):

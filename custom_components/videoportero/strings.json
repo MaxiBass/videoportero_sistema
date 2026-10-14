@@ -36,13 +36,15 @@
           "al_empezar": "Scripts al empezar la visita",
           "silenciar": "Script que silencia el altavoz",
           "al_timbre": "Scripts con cada timbre",
-          "comparar": "Automatizaciones con las que comparar"
+          "comparar": "Automatizaciones que sustituye",
+          "activa": "La integración manda"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
           "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
           "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
-          "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
+          "comparar": "Las que hacen hoy lo que hace la integración. En modo sombra se comparan con ella; cuando la integración manda, se apagan (no se borran).",
+          "activa": "Apagado (modo sombra): la integración solo observa y compara. Encendido: avisa, abre y escribe el banner ella, y apaga las automatizaciones de arriba; al volver a apagarlo, se encienden de nuevo."
         }
       }
     },
@@ -87,15 +89,20 @@
           "al_empezar": "Scripts al empezar la visita",
           "silenciar": "Script que silencia el altavoz",
           "al_timbre": "Scripts con cada timbre",
-          "comparar": "Automatizaciones con las que comparar"
+          "comparar": "Automatizaciones que sustituye",
+          "activa": "La integración manda"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
           "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
           "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
-          "comparar": "Modo sombra: las que hacen hoy lo que hará la integración. Sus llamadas se comparan con las de la integración."
+          "comparar": "Las que hacen hoy lo que hace la integración. En modo sombra se comparan con ella; cuando la integración manda, se apagan (no se borran).",
+          "activa": "Apagado (modo sombra): la integración solo observa y compara. Encendido: avisa, abre y escribe el banner ella, y apaga las automatizaciones de arriba; al volver a apagarlo, se encienden de nuevo."
         }
       }
+    },
+    "error": {
+      "visita_en_curso": "Hay una visita en curso. Cambia quién manda cuando termine (unos minutos)."
     }
   },
   "config_subentries": {
@@ -249,6 +256,10 @@
     "sin_script": {
       "title": "{dispositivo}: no existe el script {detalle}",
       "description": "Este dispositivo del hogar no hará nada al empezar la visita. Crea el script o edita el dispositivo en la integración."
+    },
+    "automatizacion_encendida": {
+      "title": "La automatización «{dispositivo}» está encendida",
+      "description": "La integración Videoportero manda y la automatización {detalle} hace lo mismo: avisarían las dos. Apágala, o pasa la integración a modo sombra en sus opciones (eso la vuelve a encender)."
     }
   }
 }

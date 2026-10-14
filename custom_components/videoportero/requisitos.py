@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .configuracion import AppHA, app_ha, visibilidad
-from .const import CONF_APARATO, CONF_PANEL, CONF_SCRIPTS_INICIO, DOMAIN, SUB_MOVIL
+from .const import CONF_ACTIVA, CONF_APARATO, CONF_COMPARAR, CONF_PANEL, CONF_SCRIPTS_INICIO, DOMAIN, SUB_MOVIL
 
 
 @dataclass(frozen=True)
@@ -73,6 +73,15 @@ def problemas(hass: HomeAssistant, entrada: ConfigEntry) -> list[Problema]:
         for script in d.get(CONF_SCRIPTS_INICIO) or []:
             if hass.states.get(script) is None:
                 res.append(Problema(sub.subentry_id, "sin_script", nombre, script))
+    # Mandando la integración, una automatización que sustituye y está
+    # encendida avisaría otra vez (DECISIONES §13).
+    if entrada.options.get(CONF_ACTIVA):
+        comparar = entrada.options.get(CONF_COMPARAR) or []
+        for auto in [comparar] if isinstance(comparar, str) else comparar:
+            estado = hass.states.get(auto)
+            if estado is not None and estado.state == "on":
+                nombre = estado.attributes.get("friendly_name") or auto
+                res.append(Problema(auto, "automatizacion_encendida", nombre, auto))
     return res
 
 

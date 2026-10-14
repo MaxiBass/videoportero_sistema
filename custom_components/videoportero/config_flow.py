@@ -26,6 +26,7 @@ from .configuracion import app_ha
 from .requisitos import encontrado
 from .const import (
     CONF_ABRIR_AUTOMATICA,
+    CONF_ACTIVA,
     CONF_ABRIR_BOTON,
     CONF_AL_EMPEZAR,
     CONF_AL_TIMBRE,
@@ -101,6 +102,7 @@ def esquema_acciones(a: Mapping[str, Any]) -> vol.Schema:
             _opcional(CONF_SILENCIAR, a): _entidad("script"),
             _opcional(CONF_AL_TIMBRE, a): _entidad("script", multiple=True),
             _opcional(CONF_COMPARAR, a): _entidad("automation", multiple=True),
+            vol.Required(CONF_ACTIVA, default=a.get(CONF_ACTIVA, False)): selector.BooleanSelector(),
         }
     )
 
@@ -147,11 +149,25 @@ class VideoporteroOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="init", data_schema=esquema_videoportero(self.config_entry.options))
 
     async def async_step_acciones(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errores: dict[str, str] = {}
         if user_input is not None:
-            # Las dos pantallas traen todos los campos: lo que se deja vacío
-            # no viene y desaparece de las opciones.
-            return self.async_create_entry(data={**self._datos, **user_input})
-        return self.async_show_form(step_id="acciones", data_schema=esquema_acciones(self.config_entry.options))
+            # Cambiar quién manda con una visita en curso la partiría entre
+            # la automatización y la integración (DECISIONES §13).
+            cambia = bool(user_input.get(CONF_ACTIVA, False)) != bool(self.config_entry.options.get(CONF_ACTIVA, False))
+            sistema = getattr(self.config_entry, "runtime_data", None)
+            if cambia and sistema is not None and sistema.motor.visita is not None:
+                errores["base"] = "visita_en_curso"
+            else:
+                # Las dos pantallas traen todos los campos: lo que se deja
+                # vacío no viene y desaparece de las opciones.
+                return self.async_create_entry(data={**self._datos, **user_input})
+        return self.async_show_form(
+            step_id="acciones",
+            data_schema=self.add_suggested_values_to_schema(esquema_acciones(self.config_entry.options), user_input or {})
+            if errores
+            else esquema_acciones(self.config_entry.options),
+            errors=errores,
+        )
 
 
 # ── Dispositivos ─────────────────────────────────────────────────────

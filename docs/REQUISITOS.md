@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.1.6 (fase 1, modo sombra). Este documento se actualiza con
+Estado: versión 0.2.0 (fase 2: puede mandar o quedarse en modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
@@ -83,9 +83,49 @@ Si falta o se desactiva algo de lo de arriba, sale un aviso en Ajustes →
 Reparaciones con el dispositivo y lo que falta, y se quita solo al
 arreglarlo. El formulario de cada móvil dice qué ha encontrado.
 
+## Cuando la integración manda (fase 2)
+
+En las opciones, «La integración manda» apaga las automatizaciones de
+«Automatizaciones que sustituye» y la integración avisa, abre y escribe el
+banner. Apagar esa opción las vuelve a encender.
+
+Si la integración no carga, el timbre no avisaría. Conviene una red de
+seguridad fuera de ella: una automatización que, si el sensor de la visita no
+está disponible, vuelve a encender las antiguas y avisa. Por ejemplo
+(cambiando los `entity_id` por los tuyos):
+
+```yaml
+alias: Videoportero - red de seguridad
+triggers:
+  - trigger: homeassistant
+    event: start
+    id: arranque
+  - trigger: state
+    entity_id: sensor.videoportero_visita
+    to: unavailable
+    for: {minutes: 2}
+actions:
+  - if: [{condition: trigger, id: arranque}]
+    then: [{delay: {minutes: 3}}]
+  - condition: template  # no funciona y mandaba ella (la antigua está apagada)
+    value_template: >-
+      {{ states('sensor.videoportero_visita') in ['unavailable', 'unknown']
+         and is_state('automation.mi_visita_al_videoportero', 'off') }}
+  - action: automation.turn_on
+    target:
+      entity_id: [automation.mi_visita_al_videoportero, automation.mi_boton_abrir]
+  - action: persistent_notification.create
+    data: {title: Videoportero, message: La integración no funciona; vuelven las automatizaciones.}
+mode: single
+```
+
+Cuando la integración vuelve a funcionar, al arrancar las apaga ella.
+
 ## Comprobar que todo va
 
-- `sensor.videoportero_visita`: la visita en curso o la última.
+- `sensor.videoportero_visita`: la visita en curso o la última; `modo` dice
+  quién manda y, mandando la integración, `llamadas_fallidas` debe quedarse
+  en 0.
 - `sensor.videoportero_diferencias`: en el modo sombra, lo que no coincidió
   con la automatización (debe quedarse quieto).
 - Ajustes → Sistema → Registros, filtrando por `videoportero`.

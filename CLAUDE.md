@@ -21,9 +21,9 @@ Es **público** a propósito, porque HACS no lee repos privados. Por eso:
 - Repo local: `~/Downloads/GitHub/videoportero_sistema`
 - HA real por Samba: `/Volumes/config` (si no está montado:
   `osascript -e 'mount volume "smb://192.168.1.9/config"'`).
-- Esta sesión **no tiene credenciales de GitHub**: `git add` y `git commit`
-  sí, `git push` no. El push, y crear el repo en GitHub, lo hace Maxi desde
-  GitHub Desktop.
+- Push con el GitHub CLI de Maxi (desde el 13/10/2026), solo cuando él lo pida y
+  tras revisar el diff por datos personales:
+  `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin main`.
 
 ## Estructura
 
@@ -36,7 +36,7 @@ custom_components/videoportero/
   sombra.py       comparación con la automatización; no importa HA
   configuracion.py  entrada + subentradas → configuración del motor
   historial.py    visitas y diferencias en .storage (90 días)
-  __init__.py     Sistema: suscripciones, motor, modo sombra
+  __init__.py     Sistema: suscripciones, motor, modo sombra o activa (fase 2)
   config_flow.py  alta, opciones y subentradas «móvil» y «hogar»
   sensor.py       sensor.videoportero_visita y sensor.videoportero_diferencias
   switch.py       interruptor «Avisos» por dispositivo (entity_id fijo: lo consulta la automatización)
@@ -72,6 +72,7 @@ Las comparaciones con la casa (privadas):
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/diferencial.py 100 1
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/historial.py
 /tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase1/sombra_local.py 40 1
+/tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase2/activa_local.py 40 1
 ```
 
 El Python 3.14 del Mac da un segfault al cerrarse con HA cargado (ver

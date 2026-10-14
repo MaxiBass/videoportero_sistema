@@ -302,7 +302,7 @@ class Motor:
         self.puerta_cambio: datetime | None = None
         self.audio_cambio: datetime | None = None
         self.visita: Visita | None = None
-        self._banner_hasta: datetime | None = None
+        self.banner_hasta: datetime | None = None
         self._ultimo_abrir: Abrir | None = None
 
     def cambiar_dispositivos(self, dispositivos: Iterable[Dispositivo]) -> None:
@@ -314,8 +314,8 @@ class Motor:
         pendientes = []
         if self.visita is not None and self.visita.ultimo_evento is not None:
             pendientes.append(self.visita.ultimo_evento + self.ajustes.espera)
-        if self._banner_hasta is not None:
-            pendientes.append(self._banner_hasta)
+        if self.banner_hasta is not None:
+            pendientes.append(self.banner_hasta)
         return min(pendientes) if pendientes else None
 
     def procesar(self, ev: Evento) -> list[Decision]:
@@ -386,7 +386,7 @@ class Motor:
         motivo = {Timbre: "timbre", Cara: "cara", Matricula: "matricula"}[type(ev)]
         tag = "visita-" + ev.hora.strftime("%Y%m%d%H%M%S")
         self.visita = Visita(tag=tag, inicio=ev.hora, motivo=motivo, imagen=self.ajustes.imagen_camara)
-        self._banner_hasta = None  # empezar la visita quita el banner
+        self.banner_hasta = None  # empezar la visita quita el banner
         salida.append(EmpiezaVisita(tag, ev.hora, motivo, silenciar=not self.hablando))
 
     def _vencer(self, hora: datetime, salida: list[Decision]) -> None:
@@ -395,8 +395,8 @@ class Motor:
             limite = v.ultimo_evento + self.ajustes.espera
             if hora >= limite:
                 self._terminar(limite, salida)
-        if self._banner_hasta is not None and hora >= self._banner_hasta:
-            self._banner_hasta = None
+        if self.banner_hasta is not None and hora >= self.banner_hasta:
+            self.banner_hasta = None
             salida.append(Banner(""))
 
     def _paso(self, ev: Timbre | Cara | Matricula | Atendido, salida: list[Decision]) -> None:
@@ -559,4 +559,4 @@ class Motor:
         texto = TEXTO_BANNER[v.estado]
         if texto:
             salida.append(Banner(texto))
-            self._banner_hasta = hora + self.ajustes.banner
+            self.banner_hasta = hora + self.ajustes.banner

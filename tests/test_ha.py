@@ -413,6 +413,107 @@ async def recorrido(directorio: Path) -> None:
         await hass.async_block_till_done()
         comprobar(hass.states.get("sensor.videoportero_visita").state == "en_curso", "y sigue escuchando tras el cambio")
 
+        # ── Fase 2: la integración manda ──
+        print("\nLa integración manda (fase 2)")
+        from homeassistant.helpers import issue_registry as ir
+        from homeassistant.setup import async_setup_component
+
+        # Una automatización de verdad que hace «lo mismo» (para apagarla y encenderla)
+        assert await async_setup_component(hass, "automation", {"automation": [
+            {"id": "visita", "alias": "visita", "triggers": [{"trigger": "event", "event_type": "nunca"}], "actions": []}]})
+        await hass.async_block_till_done()
+        comprobar(hass.states.get("automation.visita").state == "on", "(la automatización que sustituye está encendida)")
+        llamadas_hechas: list[tuple[str, str, dict]] = []
+
+        async def capturar(call):
+            llamadas_hechas.append((call.domain, call.service, dict(call.data)))
+
+        for dominio, servicio in (("script", "turn_on"), ("switch", "turn_on"), ("input_text", "set_value")):
+            hass.services.async_register(dominio, servicio, capturar)
+        for s in ("mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj", "mobile_app_tableta"):
+            hass.services.async_register("notify", s, capturar)
+
+        acciones = {"abrir_boton": "script.abrir", "abrir_automatica": "switch.motor", "audio": "input_boolean.audio",
+                    "marca_audio": "input_text.marca", "banner": "input_text.banner", "al_empezar": ["script.zoom"],
+                    "silenciar": "script.silencia", "al_timbre": ["script.foto"], "comparar": ["automation.visita"]}
+        videoportero = {"timbre": "binary_sensor.timbre", "puerta": "binary_sensor.puerta", "umbral_cara": 0.95,
+                        "vista_llamada": "videoportero"}
+
+        async def opciones(activa):
+            r = await hass.config_entries.options.async_init(entrada.entry_id)
+            r = await hass.config_entries.options.async_configure(r["flow_id"], videoportero)
+            r = await hass.config_entries.options.async_configure(r["flow_id"], {**acciones, "activa": activa})
+            await hass.async_block_till_done()
+            return r
+
+        r = await opciones(True)
+        comprobar(r["type"] == "form" and r["errors"] == {"base": "visita_en_curso"},
+                  "con una visita en curso no deja cambiar quién manda")
+        comprobar(hass.states.get("automation.visita").state == "on", "y no toca la automatización")
+        sistema._procesar([Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4))])
+        hass.states.async_set("binary_sensor.timbre", "off")
+        r = await opciones(True)
+        comprobar(r["type"] == "create_entry" and sistema.casa.activa, "sin visita, sí: la integración manda")
+        comprobar(hass.states.get("automation.visita").state == "off", "y apaga la automatización que sustituye (sin borrarla)")
+        estado = hass.states.get("sensor.videoportero_visita")
+        comprobar(estado.attributes.get("modo") == "activa", f"el sensor dice quién manda ({estado.attributes.get('modo')})")
+
+        llamadas_hechas.clear()
+        hass.states.async_set(sensor_luis, "com.otra")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        avisos = [(s, d.get("message")) for dom, s, d in llamadas_hechas if dom == "notify"]
+        comprobar(sorted(s for s, _ in avisos) == ["mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"]
+                  and all("llamando al timbre" in (m or "") for _, m in avisos),
+                  f"un timbre avisa de verdad a los móviles ({avisos})")
+        hechas = {(dom, d.get("entity_id")) for dom, s, d in llamadas_hechas if dom != "notify"}
+        comprobar({("script", "script.zoom"), ("script", "script.silencia"), ("script", "script.foto"),
+                   ("input_text", "input_text.banner")} <= hechas,
+                  f"y hace lo de empezar la visita: zoom, silenciar, foto, banner ({sorted(map(str, hechas))})")
+        llamadas_hechas.clear()
+        hass.states.async_set(sensor_luis, APP_HA)
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        cierre = [(s, d.get("message")) for dom, s, d in llamadas_hechas if dom == "notify"]
+        comprobar(cierre and all(m.startswith("Luis ha atendido") for _, m in cierre)
+                  and "mobile_app_movil_de_luis" not in [s for s, _ in cierre],
+                  f"Luis abre la app: «Luis ha atendido» a los demás, a él no ({cierre})")
+        comprobar(any(dom == "input_text" and d.get("value") == "Llamada ya atendida" for dom, s, d in llamadas_hechas),
+                  "y escribe el banner")
+        llamadas_hechas.clear()
+        hass.bus.async_fire("mobile_app_notification_action", {"action": "ABRIR_PUERTA", "device_id": "app-ana", "tag": "x"})
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.2)
+        comprobar(("script", "turn_on", {"entity_id": "script.abrir"}) in llamadas_hechas, "el botón ABRIR abre")
+        estado = hass.states.get("sensor.videoportero_visita")
+        comprobar(estado.attributes.get("llamadas_hechas", 0) > 0 and estado.attributes.get("llamadas_fallidas") == 0,
+                  f"y lleva la cuenta de sus llamadas ({estado.attributes.get('llamadas_hechas')} hechas, "
+                  f"{estado.attributes.get('llamadas_fallidas')} fallidas)")
+
+        await hass.services.async_call("automation", "turn_on", {"entity_id": "automation.visita"}, blocking=True)
+        await hass.async_block_till_done()
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(any(i.endswith("automatizacion_encendida") for i in avisos),
+                  f"si alguien vuelve a encender la automatización, avisa en Reparaciones ({sorted(avisos)})")
+        await hass.config_entries.async_reload(entrada.entry_id)
+        await hass.async_block_till_done()
+        sistema = entrada.runtime_data
+        comprobar(hass.states.get("automation.visita").state == "off", "al arrancar mandando, la vuelve a apagar")
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(not any(i.endswith("automatizacion_encendida") for i in avisos), "y el aviso desaparece")
+        hass.states.async_set("input_text.banner", "Llamada ya atendida")
+        await hass.config_entries.async_reload(entrada.entry_id)
+        await hass.async_block_till_done()
+        sistema = entrada.runtime_data
+        comprobar(sistema.banner == "Llamada ya atendida" and sistema.motor.banner_hasta is not None,
+                  "un banner que quedó escrito antes de reiniciar se borrará a su hora")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        r = await opciones(False)
+        comprobar(r["type"] == "create_entry" and not sistema.casa.activa, "volver a modo sombra")
+        comprobar(hass.states.get("automation.visita").state == "on", "vuelve a encender la automatización")
+        comprobar(hass.states.get("sensor.videoportero_visita").attributes.get("modo") == "sombra", "y el sensor lo dice")
+
         comprobar(await hass.config_entries.async_unload(entrada.entry_id), "se descarga limpia")
     finally:
         await hass.async_stop(force=True)

@@ -19,6 +19,7 @@ from homeassistant.util import slugify
 
 from .const import (
     CONF_ABRIR_AUTOMATICA,
+    CONF_ACTIVA,
     CONF_ABRIR_BOTON,
     CONF_AL_EMPEZAR,
     CONF_AL_TIMBRE,
@@ -72,8 +73,9 @@ class Casa:
     entradas: Entradas
     salidas: Salidas
     ajustes: Ajustes
-    comparar: tuple[str, ...] = ()
+    comparar: tuple[str, ...] = ()  # las automatizaciones que sustituye
     avisos: dict[str, str] = field(default_factory=dict)  # notify → dispositivo
+    activa: bool = False  # la integración manda (fase 2)
 
 
 def app_ha(hass: HomeAssistant, device_id: str | None) -> AppHA | None:
@@ -210,4 +212,6 @@ def leer(hass: HomeAssistant, entrada: ConfigEntry) -> Casa:
         banner=o.get(CONF_BANNER) or "",
         marca_audio=o.get(CONF_MARCA_AUDIO) or "",
     )
-    return Casa(tuple(dispositivos), entradas, salidas, ajustes, _lista(o.get(CONF_COMPARAR)), avisos)
+    return Casa(
+        tuple(dispositivos), entradas, salidas, ajustes, _lista(o.get(CONF_COMPARAR)), avisos, bool(o.get(CONF_ACTIVA, False))
+    )

@@ -309,3 +309,37 @@ Se descartaron, con los datos de un mes (46 visitas):
 En el último mes ninguna cara llegó a menos de un minuto de colgar o de
 cerrarse la puerta (salvo las del 08/10), así que la pausa no habría
 bloqueado ninguna visita real.
+
+## 13. Fase 2: la integración manda (v0.2.0)
+
+Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
+134 llamadas comparadas sin ninguna diferencia sin explicar.
+
+- **Una opción, «La integración manda».** Al encenderla, la integración apaga
+  (no borra) las automatizaciones de «Automatizaciones que sustituye» (las
+  mismas con las que comparaba en sombra) y desde ese momento hace ella las
+  llamadas que en sombra solo apuntaba: las mismas, con los dos cambios
+  aprobados (§4). Al apagarla, vuelve a encenderlas y pasa a sombra. Con una
+  visita en curso no deja cambiar, para no partirla entre las dos.
+- **Orden de las llamadas:** decisión a decisión; las de una misma decisión, a
+  la vez (como el `parallel` de la automatización: los avisos a los móviles).
+  Una llamada que falla o tarda más de 30 s no frena las demás: va al registro
+  y se cuenta en el sensor de la visita (`llamadas_hechas`,
+  `llamadas_fallidas`; `modo` dice quién manda).
+- **Nunca avisan las dos.** Al arrancar mandando, la integración vuelve a
+  apagar las que sustituye si alguien las encendió; si se encienden mientras
+  manda, sale un aviso en Reparaciones.
+- **Red de seguridad, fuera de la integración.** Si la integración no carga o
+  se cae, el timbre dejaría de avisar. Una automatización aparte (ejemplo en
+  REQUISITOS) vuelve a encender las antiguas si el sensor de la visita no está
+  disponible y avisa; cuando la integración vuelve, las apaga ella.
+- **El banner tras un reinicio:** mandando, si al arrancar queda un banner
+  escrito, se borra a los 3 min de escribirse, como si no hubiera habido
+  reinicio (la automatización lo dejaba puesto).
+- **Sigue en YAML hasta la fase 3:** los scripts de las tablets, contestar y
+  colgar el audio y su silenciado de seguridad, lo que hacen las tablets al
+  abrirse la puerta y los botones Guardar/Ignorar de una matrícula nueva.
+- **Pedir el nombre de una matrícula** es una opción de cada móvil. La
+  automatización solo se lo pedía a un móvil; Maxi activó también el Mac
+  (14/10). En sombra eso sale como diferencia («solo integración») cuando
+  llega una matrícula desconocida; mandando, el Mac también la recibe.

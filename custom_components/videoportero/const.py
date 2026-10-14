@@ -27,8 +27,9 @@ CONF_AL_EMPEZAR = "al_empezar"
 CONF_SILENCIAR = "silenciar"  # script que silencia el altavoz al empezar la visita
 CONF_AL_TIMBRE = "al_timbre"
 
-# Opciones de la entrada: modo sombra
-CONF_COMPARAR = "comparar"  # automatizaciones con las que se compara
+# Opciones de la entrada: modo sombra y cambio (fase 2)
+CONF_COMPARAR = "comparar"  # automatizaciones que sustituye: se compara con ellas o se apagan
+CONF_ACTIVA = "activa"  # la integración manda (fase 2): ejecuta y apaga las de CONF_COMPARAR
 
 # Subentradas
 CONF_NOMBRE = "nombre"
