@@ -53,7 +53,7 @@ Así se puede comparar el motor con la automatización real sobre los mismos
 eventos (§8), y la parte de HA queda fina: suscribirse, llamar al motor y
 hacer las llamadas.
 
-## 4. Mismas reglas, y dos cambios aprobados
+## 4. Mismas reglas, y tres cambios aprobados
 
 Las reglas se portan una a una y los campos de `Visita` se llaman como las
 variables de la automatización. Resumen:
@@ -100,13 +100,19 @@ variables de la automatización. Resumen:
   mediana de 6 s más tarde (hasta 43 s). La integración encuentra sola el
   sensor de visibilidad junto al de ruta de BrowserMod de cada móvil.
 
-Cambios aprobados por Maxi el 03/10/2026, y los únicos:
+Cambios aprobados por Maxi, y los únicos (los dos primeros el 03/10/2026,
+el tercero el 15/10/2026, ya con la integración mandando):
 
 1. **Decir quién**: «Ana ha abierto la puerta» en vez de «Alguien ha abierto
    la puerta», y lo mismo al atender. Si el aparato no tiene dueño: «Han
    atendido desde Tablet salón». Si no se sabe, «Alguien», como antes.
 2. **Quien pulsa ABRIR no recibe el aviso de cierre**, igual que ya pasaba con
    quien contestaba.
+3. **A quien contesta se le retira el aviso de la visita** (abrir la app de
+   HA, entrar en la vista de llamada o hablar): ya tiene HA delante y el aviso
+   se quedaba en su móvil. A quien abre con ABRIR se le deja, por si quiere
+   volver a pulsar «ABRIR / CERRAR». Si no se sabe quién contestó, no se
+   retira nada.
 
 Saber quién pulsó ABRIR es posible porque el evento del botón trae el
 `device_id` de la app y el usuario en el contexto (comprobado con los eventos
@@ -172,7 +178,7 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 - Fuera del repo (privado, porque usa la configuración de casa):
   - comparación diferencial: los mismos eventos a la automatización real,
     corriendo en un HA local, y al motor; se comparan las llamadas a servicios
-    una a una. Los dos cambios de §4 se normalizan antes de comparar. Se
+    una a una. Los cambios aprobados de §4 se normalizan antes de comparar. Se
     comprobó que la comparación detecta un error de umbral metido a propósito;
   - el último mes real del recorder pasado por el motor y comparado con los
     avisos que mandó de verdad la automatización.
@@ -212,7 +218,7 @@ no las cuenta.
 Cada llamada se empareja con una igual del otro lado hecha a menos de 5 s.
 Lo que pasa 20 s sin pareja es una diferencia: se guarda en el historial y la
 cuenta el sensor `sensor.videoportero_diferencias`. Antes de comparar se
-deshacen los dos cambios de §4, y se ignoran la hora del texto y el tag de la
+deshacen los cambios aprobados de §4, y se ignoran la hora del texto y el tag de la
 visita, que lleva la hora de inicio.
 
 Diferencias que se esperan y no son fallos de la integración:
@@ -318,14 +324,21 @@ Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
 - **Una opción, «La integración manda».** Al encenderla, la integración apaga
   (no borra) las automatizaciones de «Automatizaciones que sustituye» (las
   mismas con las que comparaba en sombra) y desde ese momento hace ella las
-  llamadas que en sombra solo apuntaba: las mismas, con los dos cambios
+  llamadas que en sombra solo apuntaba: las mismas, con los cambios
   aprobados (§4). Al apagarla, vuelve a encenderlas y pasa a sombra. Con una
   visita en curso no deja cambiar, para no partirla entre las dos.
-- **Orden de las llamadas:** decisión a decisión; las de una misma decisión, a
-  la vez (como el `parallel` de la automatización: los avisos a los móviles).
-  Una llamada que falla o tarda más de 30 s no frena las demás: va al registro
-  y se cuenta en el sensor de la visita (`llamadas_hechas`,
-  `llamadas_fallidas`; `modo` dice quién manda).
+- **Orden de las llamadas (v0.2.1):** en orden por destino y en paralelo
+  entre destinos. Los avisos a un mismo móvil van en orden (el primero suena y
+  los siguientes lo sustituyen), y lo mismo las escrituras de un mismo
+  ayudante; pero cada móvil, cada script y cada ayudante va por su lado. En la
+  0.2.0 iban todas en una sola fila: el 15/10 un aviso al móvil tardó 10 s en
+  dar error («Timeout sending notification») y el botón ABRIR, pulsado
+  mientras tanto, esperó 2 s a que acabara. La automatización no tenía ese
+  problema porque el ABRIR era otra automatización. Una llamada que falla o
+  tarda más de 30 s no frena las demás: va al registro y se cuenta en el
+  sensor de la visita (`llamadas_hechas`, `llamadas_fallidas`; `modo` dice
+  quién manda). El aviso que tarda y acaba en «Timeout» no cuenta como
+  fallida: la app de HA lo apunta en el registro sin devolver error.
 - **Nunca avisan las dos.** Al arrancar mandando, la integración vuelve a
   apagar las que sustituye si alguien las encendió; si se encienden mientras
   manda, sale un aviso en Reparaciones.

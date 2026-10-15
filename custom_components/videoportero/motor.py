@@ -14,6 +14,7 @@ compararlas. Cambios deliberados respecto a ella (DECISIONES §4):
   procesa otro.
 - Se sabe quién atendió o abrió (`Atendido.quien`, `Abrir.quien`) y se dice en
   el aviso, y quien pulsa ABRIR no recibe el aviso de cierre.
+- A quien contesta (no a quien abre) se le retira el aviso de la visita.
 
 El tiempo lo marca quien llama: cada evento trae su hora, y `proximo_tick()`
 dice cuándo hay que mandar un `Tick` para cerrar visitas o borrar el banner.
@@ -38,6 +39,8 @@ POR_APP = "app"  # alguien abrió la app de HA en el móvil
 POR_PANEL = "panel"  # alguien entró en la vista de llamada
 POR_AUDIO = "audio"  # alguien contestó con audio
 POR_AUTOMATICA = "automatica"  # la abrió la apertura automática
+# Contestar, a diferencia de abrir: quien contesta ya tiene HA delante
+CONTESTAR = (POR_APP, POR_PANEL, POR_AUDIO)
 
 # Cómo terminó
 ATENDIDA = "atendida"
@@ -425,6 +428,12 @@ class Motor:
             v.timbres.append(ev.hora)
             salida.append(GuardarFoto(v.tag))
         elif isinstance(ev, Atendido):
+            # Quien contesta ya tiene HA delante: se le retira el aviso de la
+            # visita. A quien abre se le deja, por si quiere volver a pulsar
+            # «ABRIR / CERRAR» (cambio aprobado 3, DECISIONES §4).
+            contesta = self.dispositivos.get(ev.quien) if ev.quien else None
+            if ev.como in CONTESTAR and contesta is not None and contesta.recibe_avisos and v.primera_notif_enviada:
+                salida.append(RetirarAviso(v.tag, (contesta.id,)))
             v.atendida = True
             v.abierto_boton = ev.como == POR_PUERTA
             v.dispositivo_atendio = ev.quien

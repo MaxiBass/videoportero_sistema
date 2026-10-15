@@ -475,10 +475,15 @@ async def recorrido(directorio: Path) -> None:
         hass.states.async_set(sensor_luis, APP_HA)
         await hass.async_block_till_done()
         await asyncio.sleep(0.3)
-        cierre = [(s, d.get("message")) for dom, s, d in llamadas_hechas if dom == "notify"]
+        cierre = [(s, d.get("message")) for dom, s, d in llamadas_hechas
+                  if dom == "notify" and d.get("message") != "clear_notification"]
         comprobar(cierre and all(m.startswith("Luis ha atendido") for _, m in cierre)
                   and "mobile_app_movil_de_luis" not in [s for s, _ in cierre],
                   f"Luis abre la app: «Luis ha atendido» a los demás, a él no ({cierre})")
+        retirado = [(s, d.get("data", {}).get("tag", "")) for dom, s, d in llamadas_hechas
+                    if dom == "notify" and d.get("message") == "clear_notification"]
+        comprobar(len(retirado) == 1 and retirado[0][0] == "mobile_app_movil_de_luis" and retirado[0][1].startswith("visita-"),
+                  f"y a Luis, que ha contestado, se le retira el aviso de la visita ({retirado})")
         comprobar(any(dom == "input_text" and d.get("value") == "Llamada ya atendida" for dom, s, d in llamadas_hechas),
                   "y escribe el banner")
         llamadas_hechas.clear()
@@ -486,6 +491,36 @@ async def recorrido(directorio: Path) -> None:
         await hass.async_block_till_done()
         await asyncio.sleep(0.2)
         comprobar(("script", "turn_on", {"entity_id": "script.abrir"}) in llamadas_hechas, "el botón ABRIR abre")
+        comprobar(not any(d.get("message") == "clear_notification" for _, _, d in llamadas_hechas),
+                  "y a quien abre no se le retira el aviso")
+
+        # Un aviso que tarda (el 15/10 uno tardó 10 s) no frena el botón ABRIR
+        # ni los avisos a los demás móviles; los de ese móvil siguen en orden.
+        async def aviso_lento(call):
+            llamadas_hechas.append((call.domain, call.service, dict(call.data)))
+            await asyncio.sleep(1.5)
+
+        hass.services.async_register("notify", "mobile_app_movil_de_ana", aviso_lento)
+        llamadas_hechas.clear()
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        hass.bus.async_fire("mobile_app_notification_action", {"action": "ABRIR_PUERTA", "device_id": "app-luis", "tag": "x"})
+        await asyncio.sleep(0.3)
+        comprobar(("script", "turn_on", {"entity_id": "script.abrir"}) in llamadas_hechas,
+                  "con el aviso de Ana tardando, el ABRIR abre al momento")
+        comprobar(any(s == "mobile_app_movil_de_luis" for _, s, _ in llamadas_hechas), "y a Luis le llega su aviso al momento")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        de_ana = [d.get("message") for _, s, d in llamadas_hechas if s == "mobile_app_movil_de_ana"]
+        comprobar(len(de_ana) == 1, f"el segundo aviso a Ana espera a que acabe el primero ({len(de_ana)} empezados)")
+        await asyncio.sleep(3.2)
+        de_ana = [d.get("data", {}).get("alert_once") for _, s, d in llamadas_hechas if s == "mobile_app_movil_de_ana"]
+        comprobar(de_ana == [False, True], f"y le llegan en orden: primero el que suena ({de_ana})")
+        hass.services.async_register("notify", "mobile_app_movil_de_ana", capturar)
+        hass.states.async_set("binary_sensor.timbre", "off")
         estado = hass.states.get("sensor.videoportero_visita")
         comprobar(estado.attributes.get("llamadas_hechas", 0) > 0 and estado.attributes.get("llamadas_fallidas") == 0,
                   f"y lleva la cuenta de sus llamadas ({estado.attributes.get('llamadas_hechas')} hechas, "

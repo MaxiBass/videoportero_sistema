@@ -6,8 +6,9 @@ casa apunta las que hacen las automatizaciones que sustituye. Cada llamada se
 empareja con una igual del otro lado hecha a menos de TOLERANCIA segundos; la
 que se queda sin pareja más de PLAZO segundos es una diferencia.
 
-Antes de comparar se deshacen los dos cambios aprobados (DECISIONES §4), que
-la automatización no tiene: decir quién y no avisar a quien pulsó ABRIR.
+Antes de comparar se deshacen los cambios aprobados (DECISIONES §4), que la
+automatización no tiene: decir quién, no avisar a quien pulsó ABRIR y retirar
+el aviso a quien contesta.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .llamadas import Llamada, Salidas
-from .motor import POR_PUERTA, Avisar, Decision, Dispositivo, TerminaVisita
+from .motor import POR_PUERTA, Avisar, Decision, Dispositivo, RetirarAviso, TerminaVisita
 
 TOLERANCIA = 5.0
 PLAZO = 20.0
@@ -52,13 +53,15 @@ def claves(dominio: str, servicio: str, datos: Mapping[str, Any]) -> list[tuple[
 
 
 def como_la_automatizacion(decisiones: Iterable[Decision], dispositivos: Mapping[str, Dispositivo]) -> list[Decision]:
-    """Las decisiones sin los dos cambios aprobados, para compararlas."""
+    """Las decisiones sin los cambios aprobados, para compararlas."""
     decisiones = list(decisiones)
     fin = next((d.visita for d in decisiones if isinstance(d, TerminaVisita)), None)
     nombres = {d.nombre for d in dispositivos.values()}
     moviles = [d.id for d in dispositivos.values() if d.recibe_avisos]
     res: list[Decision] = []
     for d in decisiones:
+        if isinstance(d, RetirarAviso) and d.tag.startswith("visita-"):
+            continue  # retirar el aviso a quien contesta (cambio 3)
         if isinstance(d, Avisar) and d.cierre and fin is not None:
             m = d.mensaje
             for n in sorted(nombres, key=len, reverse=True):

@@ -111,10 +111,9 @@ class Sistema:
         self.interruptores: dict[str, Any] = {}
         self.anadir_interruptores: Any = None
         self.dispositivo_id: str | None = None
-        # Activa: las llamadas se hacen en orden, decisión a decisión (las de
-        # una misma decisión, a la vez, como el `parallel` de la automatización).
-        self._cola: asyncio.Queue[list[Llamada]] = asyncio.Queue()
-        self._trabajador: asyncio.Task | None = None
+        # Activa: la última llamada pendiente de cada destino (cada móvil,
+        # cada script o ayudante). Ver _encolar.
+        self._pendientes: dict[str, asyncio.Task] = {}
         self.hechas = 0
         self.fallidas = 0
 
@@ -172,10 +171,6 @@ class Sistema:
     async def _mandar(self, activa: bool) -> None:
         """Pasa a mandar (apaga las automatizaciones que sustituye) o a
         sombra (las vuelve a encender). No las borra nunca."""
-        if activa and self._trabajador is None:
-            self._trabajador = self.entry.async_create_background_task(
-                self.hass, self._ejecutar(), "videoportero: llamadas"
-            )
         self.comparador.esperadas.clear()
         self.comparador.reales.clear()
         automatizaciones = [a for a in self.casa.comparar if self.hass.states.get(a) is not None]
@@ -248,9 +243,9 @@ class Sistema:
         if self._tick:
             self._tick()
             self._tick = None
-        if self._trabajador is not None:
-            self._trabajador.cancel()
-            self._trabajador = None
+        for tarea in self._pendientes.values():
+            tarea.cancel()
+        self._pendientes.clear()
 
     # ── Entradas ──
 
@@ -312,9 +307,9 @@ class Sistema:
         """Activa: se encolan las llamadas. Sombra: se apuntan para comparar."""
         if self.casa.activa:
             for d in decisiones:
-                lote = llamadas(d, self.casa.salidas, self.apagados)
-                if lote:
-                    self._cola.put_nowait(lote)
+                contexto = Context()
+                for ll in llamadas(d, self.casa.salidas, self.apagados):
+                    self._encolar(ll, contexto)
         elif self.casa.comparar:
             tag = next((d.tag for d in decisiones if getattr(d, "tag", "").startswith("visita-")), None)
             if tag is None:
@@ -331,15 +326,30 @@ class Sistema:
             elif isinstance(d, Banner):
                 self.banner = d.texto
 
-    async def _ejecutar(self) -> None:
-        """Hace las llamadas encoladas, lote a lote y en orden."""
-        while True:
-            lote = await self._cola.get()
-            contexto = Context()
-            await asyncio.gather(*(self._llamar(ll, contexto) for ll in lote))
-            self._avisar_cambio()
+    def _encolar(self, ll: Llamada, contexto: Context) -> None:
+        """En orden por destino y en paralelo entre destinos.
 
-    async def _llamar(self, ll: Llamada, contexto: Context) -> None:
+        Los avisos a un mismo móvil van en orden (el primero suena y los
+        siguientes lo sustituyen), igual que las escrituras de un mismo
+        ayudante. Pero un aviso que tarda (el 15/10 uno tardó 10 s en dar
+        error) no frena el botón ABRIR ni los avisos a los demás móviles.
+        """
+        clave = f"notify.{ll.servicio}" if ll.dominio == "notify" else f"{ll.dominio}:{ll.datos.get('entity_id')}"
+        previa = self._pendientes.get(clave)
+        tarea = self.entry.async_create_background_task(
+            self.hass, self._llamar(ll, contexto, previa), f"videoportero: {clave}"
+        )
+        self._pendientes[clave] = tarea
+
+        def _hecha(t: asyncio.Task) -> None:
+            if self._pendientes.get(clave) is t:
+                del self._pendientes[clave]
+
+        tarea.add_done_callback(_hecha)
+
+    async def _llamar(self, ll: Llamada, contexto: Context, previa: asyncio.Task | None = None) -> None:
+        if previa is not None:
+            await asyncio.wait([previa])
         try:
             async with asyncio.timeout(ESPERA_LLAMADA):
                 await self.hass.services.async_call(ll.dominio, ll.servicio, dict(ll.datos), blocking=True, context=contexto)
@@ -348,6 +358,7 @@ class Sistema:
             _LOGGER.warning("Falló %s.%s %s: %s", ll.dominio, ll.servicio, ll.datos.get("entity_id", ""), err)
         else:
             self.hechas += 1
+        self._avisar_cambio()
 
     def _programar_tick(self) -> None:
         if self._tick:

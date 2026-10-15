@@ -602,6 +602,38 @@ def test_traduccion_visibilidad():
     comprobar(tr.estado(e, t(0), v, "visible", "visible", nada) == [], "ya se veía (solo atributos): nada")
 
 
+def test_retirar_al_contestar():
+    print("\n[CAMBIO] A quien contesta se le retira el aviso; a quien abre, no")
+    for como, etiqueta in ((POR_APP, "abre la app"), (POR_PANEL, "entra en la vista de llamada"), (POR_AUDIO, "habla")):
+        m = motor()
+        m.procesar(Timbre(t(0)))
+        d = m.procesar(Atendido(t(5), "ana", como))
+        retirar = de(RetirarAviso, d)
+        comprobar(len(retirar) == 1 and retirar[0].destinatarios == ("ana",) and retirar[0].tag.startswith("visita-"),
+                  f"Ana {etiqueta}: se le retira el aviso de la visita")
+        cierre = aviso(d)
+        comprobar(cierre is not None and "ana" not in cierre.destinatarios, "y no le llega el de cierre (como antes)")
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    m.procesar(Abrir(t(3), "ana"))
+    d = m.procesar(Puerta(t(4), True))
+    comprobar(de(TerminaVisita, d) and not de(RetirarAviso, d), "Ana abre con ABRIR: el aviso se le queda")
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(5), None, POR_AUDIO))), "si no se sabe quién contesta, nada")
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(5), "salon", POR_PANEL))),
+              "un dispositivo del hogar no recibe avisos: nada que retirar")
+    ll = llamadas(RetirarAviso("visita-1", ("ana",)), SALIDAS, {"ana"})
+    comprobar(ll == [], "un móvil con los avisos apagados no lo recibió: no se le retira nada")
+    from custom_components.videoportero.sombra import como_la_automatizacion
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    d = como_la_automatizacion(m.procesar(Atendido(t(5), "ana", POR_APP)), m.dispositivos)
+    comprobar(not de(RetirarAviso, d), "para comparar con la automatización (sombra) se quita")
+
+
 def test_conversacion():
     print("\nMientras se habla por el videoportero (DECISIONES §12)")
     m = motor()

@@ -54,7 +54,7 @@ En particular:
 
 - Las reglas son las de la automatización, una a una (§4). Si cambias una,
   pasa la comparación diferencial (privada) y explica la diferencia.
-- Solo hay dos cambios aprobados respecto a la automatización (§4). Cualquier
+- Solo hay tres cambios aprobados respecto a la automatización (§4). Cualquier
   otro cambio de comportamiento necesita el OK de Maxi.
 - El botón ABRIR **no caduca** y una matrícula aproximada **sí abre** (§7).
 
