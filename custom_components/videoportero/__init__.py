@@ -38,7 +38,7 @@ from .requisitos import revisar_requisitos
 from .const import DOMAIN, EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
 from .historial import Historial, visita_a_dict
 from .llamadas import Llamada, llamadas
-from .motor import Banner, Decision, Evento, Motor, TerminaVisita, Tick, Visita
+from .motor import Banner, Decision, EmpiezaVisita, Evento, Motor, TerminaVisita, Tick, Visita
 from .sombra import Comparador, alcance, como_la_automatizacion
 
 _LOGGER = logging.getLogger(__name__)
@@ -325,6 +325,10 @@ class Sistema:
                 self.historial.visita(self.ultima)
             elif isinstance(d, Banner):
                 self.banner = d.texto
+            elif isinstance(d, EmpiezaVisita):
+                # Empezar la visita borra el banner (lo vacía `llamadas`): si
+                # esta termina sin respuesta, el sensor no vuelve al anterior.
+                self.banner = ""
 
     def _encolar(self, ll: Llamada, contexto: Context) -> None:
         """En orden por destino y en paralelo entre destinos.

@@ -618,6 +618,23 @@ def test_retirar_al_contestar():
     m.procesar(Abrir(t(3), "ana"))
     d = m.procesar(Puerta(t(4), True))
     comprobar(de(TerminaVisita, d) and not de(RetirarAviso, d), "Ana abre con ABRIR: el aviso se le queda")
+    # 15/10, 17:14: abrió con ABRIR, la visita terminó, y a los 8 s contestó.
+    d = m.procesar(Atendido(t(12), "ana", POR_PANEL))
+    comprobar(de(RetirarAviso, d) == [RetirarAviso(m._anterior.tag, ("ana",))] and not de(Avisar, d),
+              "si luego contesta, se le retira (sin más avisos)")
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(15), "ana", POR_AUDIO))), "una sola vez")
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(20), "luis", POR_APP))),
+              "a otro que abre la app después, su aviso de cierre se le queda (como antes)")
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    m.procesar(Abrir(t(3), "ana"))
+    m.procesar(Puerta(t(4), True))
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(185), "ana", POR_APP))), "pasados 3 min de terminar, ya no")
+    m = motor()
+    m.procesar(Timbre(t(0)))
+    m.procesar(Atendido(t(5), "ana", POR_APP))
+    comprobar(not de(RetirarAviso, m.procesar(Atendido(t(8), "ana", POR_AUDIO))),
+              "si ya se le retiró al contestar en la visita, no se repite")
     m = motor()
     m.procesar(Timbre(t(0)))
     comprobar(not de(RetirarAviso, m.procesar(Atendido(t(5), None, POR_AUDIO))), "si no se sabe quién contesta, nada")

@@ -14,7 +14,8 @@ compararlas. Cambios deliberados respecto a ella (DECISIONES §4):
   procesa otro.
 - Se sabe quién atendió o abrió (`Atendido.quien`, `Abrir.quien`) y se dice en
   el aviso, y quien pulsa ABRIR no recibe el aviso de cierre.
-- A quien contesta (no a quien abre) se le retira el aviso de la visita.
+- A quien contesta (no a quien abre) se le retira el aviso de la visita. Si
+  abrió con ABRIR y contesta en los 3 minutos siguientes, también.
 
 El tiempo lo marca quien llama: cada evento trae su hora, y `proximo_tick()`
 dice cuándo hay que mandar un `Tick` para cerrar visitas o borrar el banner.
@@ -282,6 +283,8 @@ class Visita:
     caras: list[str] = field(default_factory=list)
     timbres: list[datetime] = field(default_factory=list)
     avisos: int = 0
+    # Dispositivos a los que ya se les retiró el aviso por contestar
+    retirados: set[str] = field(default_factory=set)
 
 
 class Motor:
@@ -307,6 +310,9 @@ class Motor:
         self.visita: Visita | None = None
         self.banner_hasta: datetime | None = None
         self._ultimo_abrir: Abrir | None = None
+        # La última visita terminada: quien conteste poco después aún tiene
+        # su aviso (por ejemplo, abrió con ABRIR y luego contesta).
+        self._anterior: Visita | None = None
 
     def cambiar_dispositivos(self, dispositivos: Iterable[Dispositivo]) -> None:
         """Se puede llamar en cualquier momento, también con una visita en curso."""
@@ -350,6 +356,18 @@ class Motor:
         elif isinstance(ev, Atendido):
             if self.visita is not None:
                 self._paso(ev, salida)
+            else:
+                # Quien atendió (abrió con ABRIR) y contesta poco después aún
+                # tiene su aviso; a los demás les queda el de cierre, como antes.
+                v = self._anterior
+                if (
+                    v is not None
+                    and v.fin is not None
+                    and ev.hora - v.fin <= self.ajustes.banner
+                    and ev.quien is not None
+                    and ev.quien == v.dispositivo_atendio
+                ):
+                    self._retirar_al_contestar(v, ev, salida)
         elif isinstance(ev, (Timbre, Cara, Matricula)):
             if self.visita is None:
                 if self._empieza(ev):
@@ -430,10 +448,10 @@ class Motor:
         elif isinstance(ev, Atendido):
             # Quien contesta ya tiene HA delante: se le retira el aviso de la
             # visita. A quien abre se le deja, por si quiere volver a pulsar
-            # «ABRIR / CERRAR» (cambio aprobado 3, DECISIONES §4).
-            contesta = self.dispositivos.get(ev.quien) if ev.quien else None
-            if ev.como in CONTESTAR and contesta is not None and contesta.recibe_avisos and v.primera_notif_enviada:
-                salida.append(RetirarAviso(v.tag, (contesta.id,)))
+            # «ABRIR / CERRAR», hasta que conteste, también en los 3 minutos
+            # siguientes a que termine la visita (cambio aprobado 3,
+            # DECISIONES §4).
+            self._retirar_al_contestar(v, ev, salida)
             v.atendida = True
             v.abierto_boton = ev.como == POR_PUERTA
             v.dispositivo_atendio = ev.quien
@@ -482,6 +500,18 @@ class Motor:
 
         if fin:
             self._terminar(ev.hora, salida)
+
+    def _retirar_al_contestar(self, v: Visita, ev: Atendido, salida: list[Decision]) -> None:
+        contesta = self.dispositivos.get(ev.quien) if ev.quien else None
+        if (
+            ev.como in CONTESTAR
+            and contesta is not None
+            and contesta.recibe_avisos
+            and v.primera_notif_enviada
+            and contesta.id not in v.retirados
+        ):
+            salida.append(RetirarAviso(v.tag, (contesta.id,)))
+            v.retirados.add(contesta.id)
 
     def _foto(self, frigate_id: Any) -> str:
         # La plantilla de la automatización escribe el id tal cual, falte o no.
@@ -564,6 +594,7 @@ class Motor:
         else:
             v.estado = SIN_RESPUESTA
         self.visita = None
+        self._anterior = v
         salida.append(TerminaVisita(v))
         texto = TEXTO_BANNER[v.estado]
         if texto:

@@ -112,7 +112,12 @@ el tercero el 15/10/2026, ya con la integración mandando):
    HA, entrar en la vista de llamada o hablar): ya tiene HA delante y el aviso
    se quedaba en su móvil. A quien abre con ABRIR se le deja, por si quiere
    volver a pulsar «ABRIR / CERRAR». Si no se sabe quién contestó, no se
-   retira nada.
+   retira nada. Abrir con ABRIR termina la visita, así que quien luego
+   contesta lo hacía ya fuera de ella y el aviso se le quedaba (15/10, 17:14:
+   ABRIR, y 5 s después entró en la vista de llamada y habló). Desde la
+   v0.2.2, a quien atendió la visita se le retira también si contesta en los
+   3 minutos siguientes a que termine (lo que dura el cartel). A los demás
+   les queda su aviso de cierre, como antes.
 
 Saber quién pulsó ABRIR es posible porque el evento del botón trae el
 `device_id` de la app y el usuario en el contexto (comprobado con los eventos

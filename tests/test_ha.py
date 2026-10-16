@@ -494,6 +494,43 @@ async def recorrido(directorio: Path) -> None:
         comprobar(not any(d.get("message") == "clear_notification" for _, _, d in llamadas_hechas),
                   "y a quien abre no se le retira el aviso")
 
+        # 15/10, 17:14: abre con ABRIR (termina la visita) y luego contesta.
+        hass.states.async_set(sensor_luis, "com.otra")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        hass.bus.async_fire("mobile_app_notification_action", {"action": "ABRIR_PUERTA", "device_id": "app-luis", "tag": "x"})
+        await hass.async_block_till_done()
+        hass.states.async_set("binary_sensor.puerta", "on")
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        comprobar(hass.states.get("sensor.videoportero_visita").state == "atendida"
+                  and not any(d.get("message") == "clear_notification" for _, _, d in llamadas_hechas),
+                  "Luis abre con ABRIR: termina la visita y el aviso se le queda")
+        llamadas_hechas.clear()
+        hass.states.async_set(sensor_luis, APP_HA)
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        retirado = [(s, d.get("data", {}).get("tag", "")) for dom, s, d in llamadas_hechas
+                    if dom == "notify" and d.get("message") == "clear_notification"]
+        comprobar(len(retirado) == 1 and retirado[0][0] == "mobile_app_movil_de_luis" and retirado[0][1].startswith("visita-")
+                  and len(llamadas_hechas) == 1,
+                  f"si luego contesta, se le retira, y nada más ({llamadas_hechas})")
+        hass.states.async_set("binary_sensor.puerta", "off")
+        await hass.async_block_till_done()
+
+        # 15/10, 17:51: otra visita, con el banner de la anterior aún puesto,
+        # que nadie atiende: el sensor no se queda con el estado anterior.
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        sistema._procesar([Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4))])
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.2)
+        estado = hass.states.get("sensor.videoportero_visita")
+        comprobar(estado.state == "sin_visita" and estado.attributes.get("ultima_estado") == "sin_respuesta",
+                  f"una visita sin respuesta tras una atendida: sin visita ({estado.state})")
+
         # Un aviso que tarda (el 15/10 uno tardó 10 s) no frena el botón ABRIR
         # ni los avisos a los demás móviles; los de ese móvil siguen en orden.
         async def aviso_lento(call):
