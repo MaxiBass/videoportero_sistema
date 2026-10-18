@@ -181,7 +181,7 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 | 1 | Sombra: instalada, escucha y anota lo que habría hecho (§9) | Solo se instala |
 | 2 | Cambio: avisa, abre y escribe el banner con los mismos ayudantes y scripts; la automatización se desactiva, no se borra | Con OK de Maxi |
 | 3 | Apertura automática, audio, matrícula nueva y dispositivos del hogar integrados | Con OK de Maxi |
-| 4 | Opcional: panel con historial; retirar lo antiguo | Con OK de Maxi |
+| 4 | Opcional: panel con historial; retirar lo antiguo (hecho el 19/10/2026: §14) | Con OK de Maxi |
 
 ## 7. Lo que no se discute (decisiones de Maxi)
 
@@ -214,7 +214,7 @@ automatización (52 fijos y 400 aleatorios), y las 7 visitas reales desde el
 
 Los datos reales nunca entran en el repositorio.
 
-## 9. Fase 1: el modo sombra
+## 9. Fase 1: el modo sombra (retirado en la v0.3.0, §14)
 
 La integración se instala y hace todo menos ejecutar: escucha lo mismo que la
 automatización (estados, MQTT de caras, `matriculas_detectada`, el botón
@@ -340,7 +340,7 @@ En el último mes ninguna cara llegó a menos de un minuto de colgar o de
 cerrarse la puerta (salvo las del 08/10), así que la pausa no habría
 bloqueado ninguna visita real.
 
-## 13. Fase 2: la integración manda (v0.2.0)
+## 13. Fase 2: la integración manda (v0.2.0; desde la v0.3.0, siempre: §14)
 
 Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
 134 llamadas comparadas sin ninguna diferencia sin explicar.
@@ -380,3 +380,31 @@ Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
   automatización solo se lo pedía a un móvil; Maxi activó también el Mac
   (14/10). En sombra eso sale como diferencia («solo integración») cuando
   llega una matrícula desconocida; mandando, el Mac también la recibe.
+
+## 14. Fin del modo sombra y de las automatizaciones antiguas (v0.3.0)
+
+Decisión de Maxi (19/10/2026), tras cinco días mandando la integración: borrar
+lo que quedaba del sistema antiguo y quitar el modo sombra.
+
+- **En casa se borraron** «VTO - Visita unificada», «VTO - Borra el estado de
+  la visita a los 3 min» y «Abrir puerta desde notificación», que estaban
+  apagadas desde el 14/10. Todo lo que usaban (scripts, ayudantes, sensores)
+  lo usa también la integración, así que no sobró nada más. Hay copia privada.
+- **La red de seguridad ya solo avisa** (Telegram y notificación de HA) si la
+  integración no carga o se cae: no queda nada que encender en su lugar. Se
+  acepta: hasta ahora no ha hecho falta nunca.
+- **En la integración** se quitan el modo sombra (`sombra.py`, la
+  comparación por contexto de automatización), las opciones «Automatizaciones
+  que sustituye» y «La integración manda», el aviso de Reparaciones
+  «automatización encendida» y `sensor.videoportero_diferencias`. La
+  integración siempre hace las llamadas.
+- **Migración 1.1 → 1.2** (`async_migrate_entry`): quita esas dos opciones de
+  la entrada y el sensor de diferencias del registro de entidades. El
+  historial guardado conserva las visitas; las diferencias se descartan al
+  guardar.
+- **Se mantiene** la comparación privada del motor con la automatización
+  (`fase0/diferencial.py`), que usa las copias guardadas de las
+  automatizaciones, no las de casa: sigue sirviendo para comprobar que las
+  reglas no cambian sin querer. Las pruebas que necesitaban el modo sombra
+  (`sombra_local.py`, `activa_local.py`) quedan retiradas.
+

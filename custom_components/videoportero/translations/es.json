@@ -25,7 +25,7 @@
       },
       "acciones": {
         "title": "Lo que hay hoy en casa",
-        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora. En la fase 1 no ejecuta nada: solo compara.",
+        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora.",
         "data": {
           "abrir_boton": "Abrir con el botón ABRIR",
           "abrir_automatica": "Abrir en la apertura automática",
@@ -35,16 +35,12 @@
           "banner": "Texto del banner",
           "al_empezar": "Scripts al empezar la visita",
           "silenciar": "Script que silencia el altavoz",
-          "al_timbre": "Scripts con cada timbre",
-          "comparar": "Automatizaciones que sustituye",
-          "activa": "La integración manda"
+          "al_timbre": "Scripts con cada timbre"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
           "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
-          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
-          "comparar": "Las que hacen hoy lo que hace la integración. En modo sombra se comparan con ella; cuando la integración manda, se apagan (no se borran).",
-          "activa": "Apagado (modo sombra): la integración solo observa y compara. Encendido: avisa, abre y escribe el banner ella, y apaga las automatizaciones de arriba; al volver a apagarlo, se encienden de nuevo."
+          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación."
         }
       }
     },
@@ -78,7 +74,7 @@
       },
       "acciones": {
         "title": "Lo que hay hoy en casa",
-        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora. En la fase 1 no ejecuta nada: solo compara.",
+        "description": "Hasta la fase 3 la integración usa los ayudantes y scripts de ahora.",
         "data": {
           "abrir_boton": "Abrir con el botón ABRIR",
           "abrir_automatica": "Abrir en la apertura automática",
@@ -88,21 +84,14 @@
           "banner": "Texto del banner",
           "al_empezar": "Scripts al empezar la visita",
           "silenciar": "Script que silencia el altavoz",
-          "al_timbre": "Scripts con cada timbre",
-          "comparar": "Automatizaciones que sustituye",
-          "activa": "La integración manda"
+          "al_timbre": "Scripts con cada timbre"
         },
         "data_description": {
           "marca_audio": "El `input_text` donde los scripts de contestar escriben quién fue.",
           "al_empezar": "Por ejemplo, el zoom de la cámara. El que silencia el altavoz va en su campo. Los de las tablets van en cada dispositivo del hogar.",
-          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación.",
-          "comparar": "Las que hacen hoy lo que hace la integración. En modo sombra se comparan con ella; cuando la integración manda, se apagan (no se borran).",
-          "activa": "Apagado (modo sombra): la integración solo observa y compara. Encendido: avisa, abre y escribe el banner ella, y apaga las automatizaciones de arriba; al volver a apagarlo, se encienden de nuevo."
+          "silenciar": "Se lanza al empezar la visita, salvo que alguien esté hablando por el videoportero: así no se corta una conversación."
         }
       }
-    },
-    "error": {
-      "visita_en_curso": "Hay una visita en curso. Cambia quién manda cuando termine (unos minutos)."
     }
   },
   "config_subentries": {
@@ -221,9 +210,6 @@
           "atendida": "Atendida",
           "abierta_automaticamente": "Abierta automáticamente"
         }
-      },
-      "diferencias": {
-        "name": "Diferencias con la automatización"
       }
     },
     "switch": {
@@ -256,10 +242,6 @@
     "sin_script": {
       "title": "{dispositivo}: no existe el script {detalle}",
       "description": "Este dispositivo del hogar no hará nada al empezar la visita. Crea el script o edita el dispositivo en la integración."
-    },
-    "automatizacion_encendida": {
-      "title": "La automatización «{dispositivo}» está encendida",
-      "description": "La integración Videoportero manda y la automatización {detalle} hace lo mismo: avisarían las dos. Apágala, o pasa la integración a modo sombra en sus opciones (eso la vuelve a encender)."
     }
   }
 }

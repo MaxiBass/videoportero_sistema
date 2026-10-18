@@ -4,7 +4,7 @@
 
 Arranca HA en un directorio temporal con la integración enlazada en
 `custom_components/`, la da de alta con sus formularios, añade dispositivos
-(subentradas) y comprueba que escucha, decide en sombra y compara. Todos los
+(subentradas) y comprueba que escucha, decide y hace las llamadas. Todos los
 nombres son inventados: este repositorio es público.
 """
 
@@ -129,8 +129,7 @@ async def recorrido(directorio: Path) -> None:
         r = await fl.async_configure(r["flow_id"], {
             "abrir_boton": "script.abrir", "abrir_automatica": "switch.motor", "apertura_automatica": "input_boolean.auto",
             "audio": "input_boolean.audio", "marca_audio": "input_text.marca", "banner": "input_text.banner",
-            "al_empezar": ["script.zoom"], "silenciar": "script.silencia", "al_timbre": ["script.foto"],
-            "comparar": ["automation.visita"]})
+            "al_empezar": ["script.zoom"], "silenciar": "script.silencia", "al_timbre": ["script.foto"]})
         comprobar(r["type"] == "create_entry", f"crea la entrada ({r.get('type')})")
         await hass.async_block_till_done()
         entrada = hass.config_entries.async_entries("videoportero")[0]
@@ -139,7 +138,7 @@ async def recorrido(directorio: Path) -> None:
         comprobar(r["type"] == "abort", "no admite una segunda entrada")
         sistema = entrada.runtime_data
         comprobar(hass.states.get("sensor.videoportero_visita").state == "sin_visita", "sensor de visita: sin visita")
-        comprobar(hass.states.get("sensor.videoportero_diferencias").state == "0", "sensor de diferencias a 0")
+        comprobar(hass.states.get("sensor.videoportero_diferencias") is None, "sin sensor de diferencias (no hay modo sombra)")
 
         # ── Dispositivos ──
         print("\nAñadir dispositivos (subentradas)")
@@ -192,24 +191,62 @@ async def recorrido(directorio: Path) -> None:
         salon = next(d.id for d in sistema.motor.dispositivos.values() if d.tipo == "hogar")
         comprobar(sistema.casa.entradas.panel.get("sensor.salon_ruta") == salon, "panel del hogar")
 
+        # ── Reparaciones ──
+        print("\nReparaciones")
+        from homeassistant.helpers import issue_registry as ir
+
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(any(i.endswith("_sin_servicio_avisos") for i in avisos), f"avisa de que falta el servicio de avisos ({sorted(avisos)})")
+        comprobar(any(i.endswith("_sin_browsermod") for i in avisos), "y de que falta el sensor de BrowserMod de Luis")
+        llamadas_hechas: list[tuple[str, str, dict]] = []
+
+        async def capturar(call):
+            llamadas_hechas.append((call.domain, call.service, dict(call.data)))
+
+        # (switch.turn_on se captura después de probar los interruptores «Avisos»)
+        for dominio, servicio in (("script", "turn_on"), ("input_text", "set_value")):
+            hass.services.async_register(dominio, servicio, capturar)
+        for s in ("mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj", "mobile_app_tableta"):
+            hass.services.async_register("notify", s, capturar)
+        hass.states.async_set("sensor.browsermod_luis_browser_path", "/marco")
+        sistema._al_revisar_requisitos(None)
+        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
+        comprobar(not any(i.endswith("_sin_servicio_avisos") or i.endswith("_sin_browsermod") for i in avisos),
+                  f"al arreglarlo, los avisos desaparecen solos ({sorted(avisos)})")
+
         # ── Una visita ──
-        print("\nUna visita (en sombra)")
+        print("\nUna visita")
         hass.states.async_set("binary_sensor.timbre", "on")
         await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
         comprobar(hass.states.get("sensor.videoportero_visita").state == "en_curso", "timbre: visita en curso")
-        esperadas = list(sistema.comparador.esperadas)
-        servicios = sorted({a.clave[1] for a in esperadas if a.clave[0] == "notify"})
-        comprobar(servicios == ["mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"],
-                  f"habría avisado a los tres móviles ({servicios})")
-        comprobar(any(a.clave[:3] == ("script", "turn_on", "script.salon_timbre") for a in esperadas),
-                  "y lanzado el script de la tablet")
-        comprobar(any(a.clave[:3] == ("script", "turn_on", "script.silencia") for a in esperadas),
-                  "y silenciado el altavoz (nadie estaba hablando)")
+        avisos = [(s, d.get("message")) for dom, s, d in llamadas_hechas if dom == "notify"]
+        comprobar(sorted(s for s, _ in avisos) == ["mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"]
+                  and all("llamando al timbre" in (m or "") for _, m in avisos),
+                  f"avisa a los tres móviles, no a la tablet ({avisos})")
+        hechas = {d.get("entity_id") for dom, s, d in llamadas_hechas if dom != "notify"}
+        comprobar({"script.salon_timbre", "script.silencia", "script.zoom", "script.foto", "input_text.banner"} <= hechas,
+                  f"lanza el script de la tablet, silencia (nadie hablaba), zoom, foto y vacía el banner ({sorted(map(str, hechas))})")
+        llamadas_hechas.clear()
         hass.states.async_set(sensor_luis, APP_HA)
         await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
         estado = hass.states.get("sensor.videoportero_visita")
         comprobar(estado.state == "atendida", f"Luis abre la app: atendida ({estado.state})")
         comprobar(estado.attributes.get("ultima_atendida_por") == "Luis", f"y se sabe quién ({estado.attributes})")
+        comprobar("modo" not in estado.attributes and estado.attributes.get("llamadas_fallidas") == 0,
+                  f"el sensor cuenta las llamadas, sin «modo» ({estado.attributes})")
+        cierre = [(s, d.get("message")) for dom, s, d in llamadas_hechas
+                  if dom == "notify" and d.get("message") != "clear_notification"]
+        comprobar(cierre and all(m.startswith("Luis ha atendido") for _, m in cierre)
+                  and "mobile_app_movil_de_luis" not in [s for s, _ in cierre],
+                  f"«Luis ha atendido» a los demás, a él no ({cierre})")
+        retirado = [(s, d.get("data", {}).get("tag", "")) for dom, s, d in llamadas_hechas
+                    if dom == "notify" and d.get("message") == "clear_notification"]
+        comprobar(len(retirado) == 1 and retirado[0][0] == "mobile_app_movil_de_luis" and retirado[0][1].startswith("visita-"),
+                  f"y a Luis, que ha contestado, se le retira el aviso de la visita ({retirado})")
+        comprobar(any(dom == "input_text" and d.get("value") == "Llamada ya atendida" for dom, s, d in llamadas_hechas),
+                  "y escribe el banner")
         comprobar(len(sistema.historial.visitas) == 1 and sistema.historial.visitas[0]["como"] == "app",
                   "queda en el historial")
         vis = "sensor.browsermod_luis_browser_visibility"
@@ -228,72 +265,8 @@ async def recorrido(directorio: Path) -> None:
         hass.states.async_set("binary_sensor.timbre", "off")
         await hass.async_block_till_done()
 
-        # ── Comparación ──
-        print("\nComparación con la automatización")
-        from homeassistant.core import Context
-
-        ctx = Context()
-        hass.bus.async_fire("automation_triggered", {"entity_id": "automation.visita"}, context=ctx)
-        await hass.async_block_till_done()
-        # La automatización hace justo lo que esperaba la integración...
-        for a in esperadas:
-            dominio, servicio, entidad, datos = a.clave
-            d = json.loads(datos)
-            if entidad:
-                d["entity_id"] = entidad
-            if dominio == "notify" and isinstance(d.get("data"), dict) and d["data"].get("tag") == "visita-*":
-                d["data"]["tag"] = "visita-20261003100000"
-            hass.bus.async_fire("call_service", {"domain": dominio, "service": servicio, "service_data": d}, context=ctx)
-        # ...más una llamada de más que sí le tocaría a la integración...
-        hass.bus.async_fire("call_service", {"domain": "input_text", "service": "set_value",
-                                             "service_data": {"entity_id": "input_text.banner", "value": "otro"}}, context=ctx)
-        # ...lo que hacen por dentro los scripts que lanza (mismo contexto: no cuenta)...
-        hass.bus.async_fire("call_service", {"domain": "notify", "service": "mobile_app_tableta",
-                                             "service_data": {"message": "command_screen_on"}}, context=ctx)
-        hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
-                                             "service_data": {"entity_id": "script.salon_restaurar"}}, context=ctx)
-        # ...y otra automatización (no cuenta)
-        hass.bus.async_fire("call_service", {"domain": "input_text", "service": "set_value",
-                                             "service_data": {"entity_id": "input_text.banner", "value": "ajeno"}},
-                            context=Context())
-        # El botón ABRIR: la automatización lanza el script de abrir, que enciende el motor por dentro
-        ctx_abrir = Context()
-        hass.bus.async_fire("automation_triggered", {"entity_id": "automation.visita"}, context=ctx_abrir)
-        await hass.async_block_till_done()
-        hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
-                                             "service_data": {"entity_id": ["script.abrir"]}}, context=ctx_abrir)
-        hass.bus.async_fire("call_service", {"domain": "switch", "service": "turn_on",
-                                             "service_data": {"entity_id": "switch.motor"}}, context=ctx_abrir)
-        # La apertura automática sí la hace la automatización (sin lanzar el script de abrir)
-        ctx_auto = Context()
-        hass.bus.async_fire("automation_triggered", {"entity_id": "automation.visita"}, context=ctx_auto)
-        await hass.async_block_till_done()
-        hass.bus.async_fire("call_service", {"domain": "script", "service": "turn_on",
-                                             "service_data": {"entity_id": "script.zoom"}}, context=ctx_auto)
-        hass.bus.async_fire("call_service", {"domain": "switch", "service": "turn_on",
-                                             "service_data": {"entity_id": "switch.motor"}}, context=ctx_auto)
-        await hass.async_block_till_done()
-        sistema._al_revisar()
-        comprobar(sistema.historial.comparadas >= len(esperadas), f"empareja lo que coincide ({sistema.historial.comparadas})")
-        sistema.comparador.plazo = 0
-        sistema._al_revisar()
-        await hass.async_block_till_done()
-        resumenes = [d["resumen"] for d in sistema.historial.diferencias]
-        comprobar(any('"otro"' in r for r in resumenes), f"apunta lo que solo hizo la automatización ({resumenes})")
-        comprobar(not any("ajeno" in r for r in resumenes), "ignora las demás automatizaciones")
-        comprobar(not any("tableta" in r or "salon_restaurar" in r for r in resumenes),
-                  "ignora lo que hacen por dentro los scripts que lanza")
-        motor = [r for r in resumenes if "switch.motor" in r]
-        comprobar(len(motor) == 1, f"el motor que enciende el script de abrir no cuenta; la apertura automática sí ({motor})")
-        comprobar(any("script.abrir" in r for r in resumenes), "el script de abrir sí cuenta")
-        comprobar(any("Luis ha atendido" not in r for r in resumenes), "el cierre se compara sin el «quién»")
-        comprobar(hass.states.get("sensor.videoportero_diferencias").state == str(len(resumenes)),
-                  "el sensor cuenta las diferencias")
-
-        # ── Interruptores de avisos y Reparaciones ──
-        print("\nInterruptores «Avisos» y Reparaciones")
-        from homeassistant.helpers import issue_registry as ir
-
+        # ── Interruptores de avisos ──
+        print("\nInterruptores «Avisos»")
         interruptores = sorted(e.entity_id for e in hass.states.async_all("switch") if e.entity_id.startswith("switch.videoportero_avisos_"))
         comprobar(len(interruptores) == 4 and "switch.videoportero_avisos_ana_movil_de_ana" in interruptores,
                   f"un interruptor por dispositivo, con entity_id fijo ({interruptores})")
@@ -303,33 +276,21 @@ async def recorrido(directorio: Path) -> None:
         await hass.async_block_till_done()
         ana_id = next(i for i, d in sistema.motor.dispositivos.items() if d.nombre == "Ana" and sistema.casa.salidas.moviles.get(i) and sistema.casa.salidas.moviles[i].notify == "mobile_app_movil_de_ana")
         comprobar(ana_id in sistema.apagados, "apagar el interruptor apaga ese dispositivo")
-        sistema.comparador.esperadas.clear()
+        llamadas_hechas.clear()
         hass.states.async_set("binary_sensor.timbre", "off")
         hass.states.async_set("binary_sensor.timbre", "on")
         await hass.async_block_till_done()
-        servicios = sorted({a.clave[1] for a in sistema.comparador.esperadas if a.clave[0] == "notify"})
+        await asyncio.sleep(0.3)
+        servicios = sorted({s for dom, s, _ in llamadas_hechas if dom == "notify"})
         comprobar("mobile_app_movil_de_ana" not in servicios and "mobile_app_movil_de_luis" in servicios,
                   f"en la visita, Ana no recibe avisos y Luis sí ({servicios})")
-        comprobar(not any(a.clave[2] == "script.salon_timbre" for a in sistema.comparador.esperadas),
+        comprobar(not any(d.get("entity_id") == "script.salon_timbre" for _, _, d in llamadas_hechas),
                   "y la tablet apagada no lanza su script")
         await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.videoportero_avisos_ana_movil_de_ana"}, blocking=True)
         await hass.async_block_till_done()
         comprobar(ana_id not in sistema.apagados, "encenderlo lo vuelve a activar")
         hass.states.async_set("binary_sensor.timbre", "off")
-        sistema.comparador.esperadas.clear()
-
-        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
-        comprobar(any(i.endswith("_sin_servicio_avisos") for i in avisos), f"avisa de que falta el servicio de avisos ({sorted(avisos)})")
-        comprobar(any(i.endswith("_sin_browsermod") for i in avisos), "y de que falta el sensor de BrowserMod de Luis")
-        async def nada(call):
-            return None
-        for s in ("mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"):
-            hass.services.async_register("notify", s, nada)
-        hass.states.async_set("sensor.browsermod_luis_browser_path", "/marco")
-        sistema._al_revisar_requisitos(None)
-        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
-        comprobar(not any(i.endswith("_sin_servicio_avisos") or i.endswith("_sin_browsermod") for i in avisos),
-                  f"al arreglarlo, los avisos desaparecen solos ({sorted(avisos)})")
+        hass.services.async_register("switch", "turn_on", capturar)  # el motor de la puerta
 
         # ── Dispositivos en el registro ──
         print("\nDispositivos en el registro")
@@ -361,12 +322,13 @@ async def recorrido(directorio: Path) -> None:
         comprobar(sistema.motor.hablando, "encender el audio: se está hablando")
         cara("c1")
         comprobar(sistema.motor.visita is None, "hablando, una cara no empieza visita")
-        sistema.comparador.esperadas.clear()
+        llamadas_hechas.clear()
         hass.states.async_set("binary_sensor.timbre", "off")
         hass.states.async_set("binary_sensor.timbre", "on")
         await hass.async_block_till_done()
+        await asyncio.sleep(0.2)
         comprobar(sistema.motor.visita is not None, "un timbre sí")
-        comprobar(not any(a.clave[2] == "script.silencia" for a in sistema.comparador.esperadas),
+        comprobar(not any(d.get("entity_id") == "script.silencia" for _, _, d in llamadas_hechas),
                   "pero sin silenciar el altavoz: no corta la conversación")
         sistema.motor.procesar(Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4)))
         hass.states.async_set("input_boolean.audio", "off")
@@ -380,7 +342,6 @@ async def recorrido(directorio: Path) -> None:
         comprobar(sistema.motor.visita is not None, "al minuto de colgar, sí")
         sistema.motor.procesar(Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4)))
         hass.states.async_set("binary_sensor.timbre", "off")
-        sistema.comparador.esperadas.clear()
 
         # ── Cambios en caliente ──
         print("\nCambiar y quitar dispositivos, y opciones")
@@ -404,7 +365,7 @@ async def recorrido(directorio: Path) -> None:
         r = await hass.config_entries.options.async_configure(r["flow_id"], {
             "timbre": "binary_sensor.timbre", "puerta": "binary_sensor.puerta", "umbral_cara": 0.9,
             "vista_llamada": "videoportero"})
-        r = await hass.config_entries.options.async_configure(r["flow_id"], {"comparar": ["automation.visita"]})
+        r = await hass.config_entries.options.async_configure(r["flow_id"], {})
         await hass.async_block_till_done()
         comprobar(sistema.motor.ajustes.umbral_cara == 0.9, "las opciones se aplican sin reiniciar")
         comprobar(not sistema.casa.salidas.banner, "lo que se deja vacío desaparece")
@@ -413,79 +374,21 @@ async def recorrido(directorio: Path) -> None:
         await hass.async_block_till_done()
         comprobar(hass.states.get("sensor.videoportero_visita").state == "en_curso", "y sigue escuchando tras el cambio")
 
-        # ── Fase 2: la integración manda ──
-        print("\nLa integración manda (fase 2)")
-        from homeassistant.helpers import issue_registry as ir
-        from homeassistant.setup import async_setup_component
-
-        # Una automatización de verdad que hace «lo mismo» (para apagarla y encenderla)
-        assert await async_setup_component(hass, "automation", {"automation": [
-            {"id": "visita", "alias": "visita", "triggers": [{"trigger": "event", "event_type": "nunca"}], "actions": []}]})
-        await hass.async_block_till_done()
-        comprobar(hass.states.get("automation.visita").state == "on", "(la automatización que sustituye está encendida)")
-        llamadas_hechas: list[tuple[str, str, dict]] = []
-
-        async def capturar(call):
-            llamadas_hechas.append((call.domain, call.service, dict(call.data)))
-
-        for dominio, servicio in (("script", "turn_on"), ("switch", "turn_on"), ("input_text", "set_value")):
-            hass.services.async_register(dominio, servicio, capturar)
-        for s in ("mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj", "mobile_app_tableta"):
-            hass.services.async_register("notify", s, capturar)
-
+        # ── Botón ABRIR, apertura automática y orden de las llamadas ──
+        print("\nBotón ABRIR, apertura automática y orden de las llamadas")
         acciones = {"abrir_boton": "script.abrir", "abrir_automatica": "switch.motor", "audio": "input_boolean.audio",
                     "marca_audio": "input_text.marca", "banner": "input_text.banner", "al_empezar": ["script.zoom"],
-                    "silenciar": "script.silencia", "al_timbre": ["script.foto"], "comparar": ["automation.visita"]}
+                    "silenciar": "script.silencia", "al_timbre": ["script.foto"]}
         videoportero = {"timbre": "binary_sensor.timbre", "puerta": "binary_sensor.puerta", "umbral_cara": 0.95,
                         "vista_llamada": "videoportero"}
-
-        async def opciones(activa):
-            r = await hass.config_entries.options.async_init(entrada.entry_id)
-            r = await hass.config_entries.options.async_configure(r["flow_id"], videoportero)
-            r = await hass.config_entries.options.async_configure(r["flow_id"], {**acciones, "activa": activa})
-            await hass.async_block_till_done()
-            return r
-
-        r = await opciones(True)
-        comprobar(r["type"] == "form" and r["errors"] == {"base": "visita_en_curso"},
-                  "con una visita en curso no deja cambiar quién manda")
-        comprobar(hass.states.get("automation.visita").state == "on", "y no toca la automatización")
         sistema._procesar([Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4))])
         hass.states.async_set("binary_sensor.timbre", "off")
-        r = await opciones(True)
-        comprobar(r["type"] == "create_entry" and sistema.casa.activa, "sin visita, sí: la integración manda")
-        comprobar(hass.states.get("automation.visita").state == "off", "y apaga la automatización que sustituye (sin borrarla)")
-        estado = hass.states.get("sensor.videoportero_visita")
-        comprobar(estado.attributes.get("modo") == "activa", f"el sensor dice quién manda ({estado.attributes.get('modo')})")
-
-        llamadas_hechas.clear()
-        hass.states.async_set(sensor_luis, "com.otra")
-        hass.states.async_set("binary_sensor.timbre", "on")
+        r = await hass.config_entries.options.async_init(entrada.entry_id)
+        r = await hass.config_entries.options.async_configure(r["flow_id"], videoportero)
+        r = await hass.config_entries.options.async_configure(r["flow_id"], acciones)
         await hass.async_block_till_done()
-        await asyncio.sleep(0.3)
-        avisos = [(s, d.get("message")) for dom, s, d in llamadas_hechas if dom == "notify"]
-        comprobar(sorted(s for s, _ in avisos) == ["mobile_app_movil_de_ana", "mobile_app_movil_de_luis", "mobile_app_reloj"]
-                  and all("llamando al timbre" in (m or "") for _, m in avisos),
-                  f"un timbre avisa de verdad a los móviles ({avisos})")
-        hechas = {(dom, d.get("entity_id")) for dom, s, d in llamadas_hechas if dom != "notify"}
-        comprobar({("script", "script.zoom"), ("script", "script.silencia"), ("script", "script.foto"),
-                   ("input_text", "input_text.banner")} <= hechas,
-                  f"y hace lo de empezar la visita: zoom, silenciar, foto, banner ({sorted(map(str, hechas))})")
-        llamadas_hechas.clear()
-        hass.states.async_set(sensor_luis, APP_HA)
-        await hass.async_block_till_done()
-        await asyncio.sleep(0.3)
-        cierre = [(s, d.get("message")) for dom, s, d in llamadas_hechas
-                  if dom == "notify" and d.get("message") != "clear_notification"]
-        comprobar(cierre and all(m.startswith("Luis ha atendido") for _, m in cierre)
-                  and "mobile_app_movil_de_luis" not in [s for s, _ in cierre],
-                  f"Luis abre la app: «Luis ha atendido» a los demás, a él no ({cierre})")
-        retirado = [(s, d.get("data", {}).get("tag", "")) for dom, s, d in llamadas_hechas
-                    if dom == "notify" and d.get("message") == "clear_notification"]
-        comprobar(len(retirado) == 1 and retirado[0][0] == "mobile_app_movil_de_luis" and retirado[0][1].startswith("visita-"),
-                  f"y a Luis, que ha contestado, se le retira el aviso de la visita ({retirado})")
-        comprobar(any(dom == "input_text" and d.get("value") == "Llamada ya atendida" for dom, s, d in llamadas_hechas),
-                  "y escribe el banner")
+        comprobar(r["type"] == "create_entry" and sistema.casa.salidas.abrir_boton == "script.abrir",
+                  "(vuelven las acciones a las opciones)")
         llamadas_hechas.clear()
         hass.bus.async_fire("mobile_app_notification_action", {"action": "ABRIR_PUERTA", "device_id": "app-ana", "tag": "x"})
         await hass.async_block_till_done()
@@ -595,17 +498,6 @@ async def recorrido(directorio: Path) -> None:
                   f"y lleva la cuenta de sus llamadas ({estado.attributes.get('llamadas_hechas')} hechas, "
                   f"{estado.attributes.get('llamadas_fallidas')} fallidas)")
 
-        await hass.services.async_call("automation", "turn_on", {"entity_id": "automation.visita"}, blocking=True)
-        await hass.async_block_till_done()
-        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
-        comprobar(any(i.endswith("automatizacion_encendida") for i in avisos),
-                  f"si alguien vuelve a encender la automatización, avisa en Reparaciones ({sorted(avisos)})")
-        await hass.config_entries.async_reload(entrada.entry_id)
-        await hass.async_block_till_done()
-        sistema = entrada.runtime_data
-        comprobar(hass.states.get("automation.visita").state == "off", "al arrancar mandando, la vuelve a apagar")
-        avisos = {i for (d, i) in ir.async_get(hass).issues if d == "videoportero"}
-        comprobar(not any(i.endswith("automatizacion_encendida") for i in avisos), "y el aviso desaparece")
         hass.states.async_set("input_text.banner", "Llamada ya atendida")
         await hass.config_entries.async_reload(entrada.entry_id)
         await hass.async_block_till_done()
@@ -613,10 +505,27 @@ async def recorrido(directorio: Path) -> None:
         comprobar(sistema.banner == "Llamada ya atendida" and sistema.motor.banner_hasta is not None,
                   "un banner que quedó escrito antes de reiniciar se borrará a su hora")
         hass.states.async_set("binary_sensor.timbre", "off")
-        r = await opciones(False)
-        comprobar(r["type"] == "create_entry" and not sistema.casa.activa, "volver a modo sombra")
-        comprobar(hass.states.get("automation.visita").state == "on", "vuelve a encender la automatización")
-        comprobar(hass.states.get("sensor.videoportero_visita").attributes.get("modo") == "sombra", "y el sensor lo dice")
+
+        # ── Migración de una instalación con modo sombra (hasta la v0.2.3) ──
+        print("\nMigración: fuera el modo sombra")
+        from homeassistant.helpers import entity_registry as er
+
+        comprobar(entrada.minor_version == 2, f"una entrada nueva ya es la 1.2 ({entrada.version}.{entrada.minor_version})")
+        comprobar(await hass.config_entries.async_unload(entrada.entry_id), "(se descarga)")
+        registro_e = er.async_get(hass)
+        registro_e.async_get_or_create("sensor", "videoportero", f"{entrada.entry_id}_diferencias", config_entry=entrada,
+                                       suggested_object_id="videoportero_diferencias")
+        hass.config_entries.async_update_entry(
+            entrada, options={**entrada.options, "comparar": ["automation.visita"], "activa": True}, minor_version=1)
+        await hass.config_entries.async_setup(entrada.entry_id)
+        await hass.async_block_till_done()
+        comprobar(entrada.state is ConfigEntryState.LOADED and entrada.minor_version == 2,
+                  f"migra a la 1.2 y carga ({entrada.state}, {entrada.version}.{entrada.minor_version})")
+        comprobar("comparar" not in entrada.options and "activa" not in entrada.options
+                  and entrada.options.get("abrir_boton") == "script.abrir",
+                  f"quita «comparar» y «activa» y deja lo demás ({sorted(entrada.options)})")
+        comprobar(registro_e.async_get_entity_id("sensor", "videoportero", f"{entrada.entry_id}_diferencias") is None,
+                  "y el sensor de diferencias")
 
         comprobar(await hass.config_entries.async_unload(entrada.entry_id), "se descarga limpia")
     finally:

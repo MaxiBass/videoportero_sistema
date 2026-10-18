@@ -4,8 +4,9 @@ Apagado, un móvil no recibe ningún aviso y un dispositivo del hogar no lanza
 sus scripts. Lo que decide la visita no cambia: si alguien abre HA en un
 móvil apagado, sigue contando como que atiende. Se recuerda tras reiniciar.
 
-El entity_id se fija al crearlo (`switch.videoportero_avisos_<título>`)
-porque la automatización lo consulta mientras siga mandando.
+El entity_id se fija al crearlo (`switch.videoportero_avisos_<título>`): no
+depende del idioma de la instalación y se puede usar en paneles y
+automatizaciones.
 """
 
 from __future__ import annotations

@@ -545,23 +545,6 @@ def test_traduccion():
     comprobar(tr.accion_aviso(E, t(0), {"action": "ignorar_matricula"}, None) == [], "otras acciones no")
 
 
-def test_alcance():
-    print("\nQué llamadas de la automatización se comparan")
-    from custom_components.videoportero.sombra import alcance
-
-    a = alcance(SALIDAS)
-    c = lambda d, s, e="", datos="{}": (d, s, e, datos)  # noqa: E731
-    comprobar(a.admite(c("notify", "mobile_app_ana")), "avisos a los móviles")
-    comprobar(not a.admite(c("notify", "mobile_app_tableta")), "no los avisos que mandan los scripts de las tablets")
-    comprobar(a.admite(c("script", "turn_on", "script.salon_timbre")), "el script del dispositivo del hogar")
-    comprobar(not a.admite(c("script", "turn_on", "script.salon_restaurar")), "no los scripts que lanza ese script")
-    comprobar(a.admite(c("input_text", "set_value", "input_text.estado")), "el banner")
-    comprobar(a.admite(c("switch", "turn_on", "switch.motor")), "la apertura automática")
-    comprobar(not a.admite(c("switch", "turn_on", "switch.motor"), {"script.abrir"}),
-              "no el motor cuando lo enciende el script de abrir (mismo contexto)")
-    comprobar(a.admite(c("script", "turn_on", "script.abrir"), {"script.abrir"}), "el script de abrir sí")
-
-
 def test_cara_sin_confirmar():
     print("\nCara de un objeto que Frigate aún no cuenta como persona")
     m = motor()
@@ -644,11 +627,6 @@ def test_retirar_al_contestar():
               "un dispositivo del hogar no recibe avisos: nada que retirar")
     ll = llamadas(RetirarAviso("visita-1", ("ana",)), SALIDAS, {"ana"})
     comprobar(ll == [], "un móvil con los avisos apagados no lo recibió: no se le retira nada")
-    from custom_components.videoportero.sombra import como_la_automatizacion
-    m = motor()
-    m.procesar(Timbre(t(0)))
-    d = como_la_automatizacion(m.procesar(Atendido(t(5), "ana", POR_APP)), m.dispositivos)
-    comprobar(not de(RetirarAviso, d), "para comparar con la automatización (sombra) se quita")
 
 
 def test_conversacion():

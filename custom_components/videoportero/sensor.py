@@ -1,4 +1,4 @@
-"""Sensores: la visita (en curso o la última) y las diferencias del modo sombra."""
+"""Sensor de la visita: la que está en curso o la última."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     sistema = entry.runtime_data
-    async_add_entities([SensorVisita(entry, sistema), SensorDiferencias(entry, sistema)])
+    async_add_entities([SensorVisita(entry, sistema)])
 
 
 class EntidadVideoportero(SensorEntity):
@@ -46,11 +46,7 @@ class EntidadVideoportero(SensorEntity):
 
 
 class SensorVisita(EntidadVideoportero):
-    """En curso, atendida o abierta (mientras dura el banner) o sin visita.
-
-    En sombra refleja lo que ve la integración mientras manda la
-    automatización; activa, lo que hace ella.
-    """
+    """En curso, atendida o abierta (mientras dura el banner) o sin visita."""
 
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = ESTADOS_VISITA
@@ -65,13 +61,11 @@ class SensorVisita(EntidadVideoportero):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         s = self._sistema
-        # Quién manda y, si es la integración, cómo van sus llamadas
-        modo: dict[str, Any] = {"modo": "activa" if s.casa.activa else "sombra"}
-        if s.casa.activa:
-            modo.update(llamadas_hechas=s.hechas, llamadas_fallidas=s.fallidas)
+        # Cómo van sus llamadas desde que arrancó
+        llamadas: dict[str, Any] = {"llamadas_hechas": s.hechas, "llamadas_fallidas": s.fallidas}
         v = s.motor.visita
         if v is not None:
-            return modo | {
+            return llamadas | {
                 "tag": v.tag,
                 "inicio": v.inicio.isoformat(),
                 "motivo": v.motivo,
@@ -81,29 +75,7 @@ class SensorVisita(EntidadVideoportero):
             }
         ultima = s.ultima
         if not ultima:
-            return modo
-        return modo | {
+            return llamadas
+        return llamadas | {
             f"ultima_{k}": ultima.get(k) for k in ("inicio", "motivo", "estado", "coche", "persona", "atendida_por", "como")
-        }
-
-
-class SensorDiferencias(EntidadVideoportero):
-    """Cuántas llamadas no coincidieron con la automatización (últimos 90 días)."""
-
-    _attr_native_unit_of_measurement = "diferencias"
-
-    def __init__(self, entry: EntradaVideoportero, sistema: Sistema) -> None:
-        super().__init__(entry, sistema, "diferencias")
-
-    @property
-    def native_value(self) -> int:
-        return len(self._sistema.historial.diferencias)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        h = self._sistema.historial
-        return {
-            "coincidencias": h.comparadas,
-            "visitas": len(h.visitas),
-            "ultimas": [f"{d['hora'][:19]} {d['lado']}: {d['resumen']}" for d in h.diferencias[-5:]],
         }

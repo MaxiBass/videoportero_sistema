@@ -1,9 +1,9 @@
 """Traduce las decisiones del motor a llamadas a servicios de Home Assistant.
 
 No importa nada de HA: devuelve la lista de llamadas y otro módulo las hace
-(o, en modo sombra, solo las anota). Las llamadas son las mismas que hace hoy
-la automatización que se sustituye, campo a campo, para que en el cambio de
-la fase 2 paneles, tablets y móviles no noten nada (DECISIONES §6).
+(`__init__.py`). Son, campo a campo, las que hacía la automatización que
+sustituyó, para que paneles, tablets y móviles no notaran el cambio
+(DECISIONES §6).
 """
 
 from __future__ import annotations

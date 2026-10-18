@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.2.3 (fase 2: puede mandar o quedarse en modo sombra). Este documento se actualiza con
+Estado: versión 0.3.0 (la integración manda; sin modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
@@ -74,8 +74,7 @@ avisos hasta que se vuelve a abrir.
 Cada dispositivo tiene un interruptor `switch.videoportero_avisos_<título>`
 en su ficha (Ajustes → Dispositivos y servicios → Videoportero → el
 dispositivo). Apagado, un móvil no recibe avisos y un dispositivo del hogar
-no hace nada en la visita. Mientras la automatización siga mandando, también
-lo consulta; si el interruptor no existe, avisa igual.
+no hace nada en la visita.
 
 ## Avisos en Reparaciones
 
@@ -83,16 +82,13 @@ Si falta o se desactiva algo de lo de arriba, sale un aviso en Ajustes →
 Reparaciones con el dispositivo y lo que falta, y se quita solo al
 arreglarlo. El formulario de cada móvil dice qué ha encontrado.
 
-## Cuando la integración manda (fase 2)
+## Si la integración no funciona
 
-En las opciones, «La integración manda» apaga las automatizaciones de
-«Automatizaciones que sustituye» y la integración avisa, abre y escribe el
-banner. Apagar esa opción las vuelve a encender.
-
-Si la integración no carga, el timbre no avisaría. Conviene una red de
-seguridad fuera de ella: una automatización que, si el sensor de la visita no
-está disponible, vuelve a encender las antiguas y avisa. Por ejemplo
-(cambiando los `entity_id` por los tuyos):
+La integración avisa, abre y escribe el banner ella; no hay nada más que lo
+haga. Si no carga, el timbre no avisa a nadie. Conviene una red de seguridad
+fuera de ella: una automatización que, si el sensor de la visita no está
+disponible, te avise por otro camino. Por ejemplo (cambiando el aviso por el
+tuyo):
 
 ```yaml
 alias: Videoportero - red de seguridad
@@ -107,25 +103,21 @@ triggers:
 actions:
   - if: [{condition: trigger, id: arranque}]
     then: [{delay: {minutes: 3}}]
-  - condition: template  # no funciona y mandaba ella (la antigua está apagada)
-    value_template: >-
-      {{ states('sensor.videoportero_visita') in ['unavailable', 'unknown']
-         and is_state('automation.mi_visita_al_videoportero', 'off') }}
-  - action: automation.turn_on
-    target:
-      entity_id: [automation.mi_visita_al_videoportero, automation.mi_boton_abrir]
+  - condition: template
+    value_template: "{{ states('sensor.videoportero_visita') in ['unavailable', 'unknown'] }}"
   - action: persistent_notification.create
-    data: {title: Videoportero, message: La integración no funciona; vuelven las automatizaciones.}
+    data:
+      title: Videoportero
+      message: La integración Videoportero no funciona; el timbre no avisa a nadie.
+      notification_id: videoportero_red_seguridad
 mode: single
 ```
 
-Cuando la integración vuelve a funcionar, al arrancar las apaga ella.
+Hasta la v0.3.0 había un modo sombra y la red de seguridad volvía a encender
+las automatizaciones antiguas; ya no hay nada que encender.
 
 ## Comprobar que todo va
 
-- `sensor.videoportero_visita`: la visita en curso o la última; `modo` dice
-  quién manda y, mandando la integración, `llamadas_fallidas` debe quedarse
-  en 0.
-- `sensor.videoportero_diferencias`: en el modo sombra, lo que no coincidió
-  con la automatización (debe quedarse quieto).
+- `sensor.videoportero_visita`: la visita en curso o la última;
+  `llamadas_fallidas` debe quedarse en 0.
 - Ajustes → Sistema → Registros, filtrando por `videoportero`.

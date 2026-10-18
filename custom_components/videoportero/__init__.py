@@ -1,13 +1,8 @@
 """Videoportero: la visita al videoportero (avisos, apertura, quién atiende).
 
-Escucha lo mismo que la automatización que sustituye y decide con el motor.
-
-- Modo sombra (fase 1): no ejecuta nada; apunta lo que habría hecho y lo
-  compara con lo que hacen de verdad las automatizaciones elegidas en las
-  opciones (DECISIONES §9).
-- Activa (fase 2, opción «La integración manda»): hace ella las llamadas y
-  apaga esas automatizaciones, sin borrarlas; volver a sombra las enciende
-  (DECISIONES §13).
+Escucha el timbre, la puerta, las caras, las matrículas y quién atiende,
+decide con el motor y hace las llamadas (DECISIONES §13). Desde la v0.3.0 no
+hay modo sombra: las automatizaciones que sustituía se borraron el 19/10/2026.
 """
 
 from __future__ import annotations
@@ -15,15 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 from datetime import datetime, timedelta
 from typing import Any
 
-from homeassistant.components.automation import EVENT_AUTOMATION_TRIGGERED
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_CALL_SERVICE, Platform
+from homeassistant.const import Platform
 from homeassistant.core import CALLBACK_TYPE, Context, Event, EventStateChangedData, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_track_point_in_time,
@@ -38,12 +31,10 @@ from .requisitos import revisar_requisitos
 from .const import DOMAIN, EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
 from .historial import Historial, visita_a_dict
 from .llamadas import Llamada, llamadas
-from .motor import Banner, Decision, EmpiezaVisita, Evento, Motor, TerminaVisita, Tick, Visita
-from .sombra import Comparador, alcance, como_la_automatizacion
+from .motor import Banner, Decision, EmpiezaVisita, Evento, Motor, TerminaVisita, Tick
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
-DOMINIOS_COMPARADOS = ("notify", "script", "switch", "input_text")
 ESPERA_LLAMADA = 30  # s; una llamada que no responde no frena las siguientes
 
 type EntradaVideoportero = ConfigEntry[Sistema]
@@ -77,6 +68,18 @@ def dispositivo_principal(entry: ConfigEntry) -> dr.DeviceInfo:
     )
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """1.2 (v0.3.0): sin modo sombra. Fuera las opciones «comparar» y
+    «activa» y el sensor de diferencias."""
+    if entry.version == 1 and entry.minor_version < 2:
+        opciones = {k: v for k, v in entry.options.items() if k not in ("comparar", "activa")}
+        registro = er.async_get(hass)
+        if entidad := registro.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_diferencias"):
+            registro.async_remove(entidad)
+        hass.config_entries.async_update_entry(entry, options=opciones, minor_version=2)
+    return entry.version == 1
+
+
 async def _al_cambiar_configuracion(hass: HomeAssistant, entry: EntradaVideoportero) -> None:
     await entry.runtime_data.cambiar_configuracion()
 
@@ -94,25 +97,19 @@ class Sistema:
         self.entry = entry
         self.casa: Casa = leer(hass, entry)
         self.motor = Motor(self.casa.dispositivos, self.casa.ajustes)
-        self.comparador = Comparador()
         self.historial = Historial(hass)
         self.banner = ""
         self.ultima: dict[str, Any] | None = None
         self._quitar: list[CALLBACK_TYPE] = []
         self._tick: CALLBACK_TYPE | None = None
-        # Ejecuciones de las automatizaciones comparadas: contexto → (hora,
-        # scripts que ha lanzado). Ver sombra.Alcance.
-        self._contextos: dict[str, tuple[float, set[str]]] = {}
-        self._alcance = alcance(self.casa.salidas)
-        self._emparejadas = 0
         # Interruptores «Avisos» (switch.py): dispositivos apagados y las
         # entidades, para añadir o quitar las de dispositivos nuevos o borrados.
         self.apagados: set[str] = set()
         self.interruptores: dict[str, Any] = {}
         self.anadir_interruptores: Any = None
         self.dispositivo_id: str | None = None
-        # Activa: la última llamada pendiente de cada destino (cada móvil,
-        # cada script o ayudante). Ver _encolar.
+        # La última llamada pendiente de cada destino (cada móvil, cada script
+        # o ayudante). Ver _encolar.
         self._pendientes: dict[str, asyncio.Task] = {}
         self.hechas = 0
         self.fallidas = 0
@@ -125,9 +122,6 @@ class Sistema:
             self.ultima = self.historial.visitas[-1]
         self._estado_inicial()
         await self._suscribir()
-        if self.casa.activa:
-            # Al arrancar, solo se apagan: en sombra no se toca lo que haya.
-            await self._mandar(True)
         revisar_requisitos(self.hass, self.entry)
 
     def _leer(self, entidad: str) -> str | None:
@@ -142,10 +136,10 @@ class Sistema:
         # Desde cuándo están así, para la pausa de las caras (DECISIONES §12)
         self.motor.puerta_cambio = self._cambio(e.puerta)
         self.motor.audio_cambio = self._cambio(e.audio)
-        # Activa: un banner que quedó escrito antes de reiniciar se borra a
-        # los 3 min de escribirse, como si no hubiera habido reinicio.
+        # Un banner que quedó escrito antes de reiniciar se borra a los 3 min
+        # de escribirse, como si no hubiera habido reinicio.
         banner = self.hass.states.get(self.casa.salidas.banner) if self.casa.salidas.banner else None
-        if self.casa.activa and banner is not None and banner.state not in ("", "unknown", "unavailable"):
+        if banner is not None and banner.state not in ("", "unknown", "unavailable"):
             self.banner = banner.state
             self.motor.banner_hasta = dt_util.as_local(banner.last_changed) + self.casa.ajustes.banner
             self._programar_tick()
@@ -155,36 +149,14 @@ class Sistema:
         return dt_util.as_local(estado.last_changed) if estado else None
 
     async def cambiar_configuracion(self) -> None:
-        antes = self.casa.activa
         self.casa = leer(self.hass, self.entry)
-        self._alcance = alcance(self.casa.salidas)
         self.motor.ajustes = self.casa.ajustes
         self.motor.cambiar_dispositivos(self.casa.dispositivos)
         self._desuscribir()
         await self._suscribir()
-        if self.casa.activa != antes:
-            await self._mandar(self.casa.activa)
         self._cambiar_interruptores()
         revisar_requisitos(self.hass, self.entry)
         self._avisar_cambio()
-
-    async def _mandar(self, activa: bool) -> None:
-        """Pasa a mandar (apaga las automatizaciones que sustituye) o a
-        sombra (las vuelve a encender). No las borra nunca."""
-        self.comparador.esperadas.clear()
-        self.comparador.reales.clear()
-        automatizaciones = [a for a in self.casa.comparar if self.hass.states.get(a) is not None]
-        if not automatizaciones:
-            return
-        servicio, datos = ("turn_off", {"stop_actions": True}) if activa else ("turn_on", {})
-        try:
-            await self.hass.services.async_call(
-                "automation", servicio, {"entity_id": automatizaciones, **datos}, blocking=True
-            )
-        except Exception:  # noqa: BLE001
-            _LOGGER.exception("No se pudieron %s las automatizaciones %s", "apagar" if activa else "encender", automatizaciones)
-        else:
-            _LOGGER.info("%s: %s", "La integración manda; apagadas" if activa else "Modo sombra; encendidas", automatizaciones)
 
     def _cambiar_interruptores(self) -> None:
         """Interruptor para cada dispositivo nuevo; fuera los de los borrados."""
@@ -213,13 +185,6 @@ class Sistema:
             self._quitar.append(async_track_state_change_event(self.hass, entidades, self._al_estado))
         self._quitar.append(self.hass.bus.async_listen(EVENTO_MATRICULA, self._al_matricula))
         self._quitar.append(self.hass.bus.async_listen(EVENTO_ACCION_AVISO, self._al_accion))
-        if self.casa.comparar and not self.casa.activa:
-            self._quitar.append(self.hass.bus.async_listen(EVENT_AUTOMATION_TRIGGERED, self._al_automatizacion))
-            self._quitar.append(self.hass.bus.async_listen(EVENT_CALL_SERVICE, self._al_llamada))
-        if self.casa.comparar and self.casa.activa:
-            # Si alguien vuelve a encender una, avisarían las dos: Reparaciones.
-            self._quitar.append(async_track_state_change_event(self.hass, list(self.casa.comparar), self._al_revisar_requisitos))
-        self._quitar.append(async_track_time_interval(self.hass, self._al_revisar, timedelta(seconds=10)))
         self._quitar.append(async_track_time_interval(self.hass, self._al_revisar_requisitos, timedelta(minutes=30)))
         if e.camara_caras:
             await self._suscribir_caras()
@@ -296,30 +261,20 @@ class Sistema:
         if not eventos:
             return
         for ev in eventos:
-            visita = self.motor.visita
             decisiones = self.motor.procesar(ev)
             if decisiones:
-                self._aplicar(decisiones, ev.hora, visita or self.motor.visita)
+                self._aplicar(decisiones)
         self._programar_tick()
         self._avisar_cambio()
 
-    def _aplicar(self, decisiones: list[Decision], hora: datetime, visita: Visita | None) -> None:
-        """Activa: se encolan las llamadas. Sombra: se apuntan para comparar."""
-        if self.casa.activa:
-            for d in decisiones:
-                contexto = Context()
-                for ll in llamadas(d, self.casa.salidas, self.apagados):
-                    self._encolar(ll, contexto)
-        elif self.casa.comparar:
-            tag = next((d.tag for d in decisiones if getattr(d, "tag", "").startswith("visita-")), None)
-            if tag is None:
-                fin = next((d.visita for d in decisiones if isinstance(d, TerminaVisita)), visita)
-                tag = fin.tag if fin else None
-            for d in como_la_automatizacion(decisiones, self.motor.dispositivos):
-                for ll in llamadas(d, self.casa.salidas, self.apagados):
-                    self.comparador.esperada(hora.timestamp(), ll, tag)
+    def _aplicar(self, decisiones: list[Decision]) -> None:
+        """Encola las llamadas de cada decisión y apunta lo que cambia."""
         for d in decisiones:
-            _LOGGER.debug("Decisión (%s): %s", "activa" if self.casa.activa else "sombra", d)
+            contexto = Context()
+            for ll in llamadas(d, self.casa.salidas, self.apagados):
+                self._encolar(ll, contexto)
+        for d in decisiones:
+            _LOGGER.debug("Decisión: %s", d)
             if isinstance(d, TerminaVisita):
                 self.ultima = visita_a_dict(d.visita, self.motor.dispositivos, d.visita.imagen)
                 self.historial.visita(self.ultima)
@@ -374,53 +329,6 @@ class Sistema:
 
     def _avisar_cambio(self) -> None:
         async_dispatcher_send(self.hass, SENAL_CAMBIO)
-
-    # ── Comparación con la automatización ──
-
-    @callback
-    def _al_automatizacion(self, evento: Event) -> None:
-        if evento.data.get("entity_id") in self.casa.comparar:
-            self._contextos[evento.context.id] = (time.time(), set())
-
-    @callback
-    def _al_llamada(self, evento: Event) -> None:
-        contexto = self._contextos.get(evento.context.id)
-        if contexto is None:
-            return
-        dominio = evento.data.get("domain")
-        if dominio not in DOMINIOS_COMPARADOS:
-            return
-        servicio = evento.data.get("service", "")
-        datos = dict(evento.data.get("service_data") or {})
-        scripts = contexto[1]
-        self.comparador.real(
-            evento.time_fired.timestamp(),
-            dominio,
-            servicio,
-            datos,
-            lambda clave: self._alcance.admite(clave, scripts),
-        )
-        if dominio == "script" and servicio == "turn_on":
-            ents = datos.get("entity_id") or []
-            scripts.update([ents] if isinstance(ents, str) else ents)
-
-    @callback
-    def _al_revisar(self, _ahora: datetime | None = None) -> None:
-        ahora = time.time()
-        # Las ejecuciones de hace más de una hora ya no hacen llamadas.
-        self._contextos = {c: v for c, v in self._contextos.items() if ahora - v[0] < 3600}
-        nuevas = self.comparador.emparejadas - self._emparejadas
-        self._emparejadas = self.comparador.emparejadas
-        diferencias = self.comparador.revisar(ahora)
-        if not nuevas and not diferencias:
-            return
-        self.historial.comparadas += nuevas
-        for d in diferencias:
-            _LOGGER.info("Diferencia con la automatización (%s): %s", d.lado, d.resumen())
-            self.historial.diferencia(d)
-        if nuevas and not diferencias:
-            self.historial.guardar()
-        self._avisar_cambio()
 
     # ── Para los sensores ──
 
