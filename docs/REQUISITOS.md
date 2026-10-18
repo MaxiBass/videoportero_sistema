@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.2.2 (fase 2: puede mandar o quedarse en modo sombra). Este documento se actualiza con
+Estado: versión 0.2.3 (fase 2: puede mandar o quedarse en modo sombra). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant

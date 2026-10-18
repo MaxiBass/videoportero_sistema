@@ -531,6 +531,38 @@ async def recorrido(directorio: Path) -> None:
         comprobar(estado.state == "sin_visita" and estado.attributes.get("ultima_estado") == "sin_respuesta",
                   f"una visita sin respuesta tras una atendida: sin visita ({estado.state})")
 
+        # 18/10, 13:16: el timbre abre solo y, 20 ms después, llega otra cara de
+        # la misma persona con la puerta aún sin abrir: no empieza otra visita.
+        def cara_aqui(ident):
+            sistema._al_mqtt(type("M", (), {"payload": _json.dumps(
+                {"type": "face", "camera": sistema.casa.entradas.camara_caras, "name": "", "score": 0.0, "id": ident})})())
+
+        sistema.motor.apertura_automatica = True
+        sistema.motor.puerta_cambio = sistema.motor.audio_cambio = None
+        hass.states.async_set("binary_sensor.timbre", "off")
+        cara_aqui("d1")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.visita is not None, "(una cara empieza la visita)")
+        llamadas_hechas.clear()
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        cara_aqui("d1")
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        abre = [d for dom, _, d in llamadas_hechas if dom == "switch" and d.get("entity_id") == "switch.motor"]
+        empieza = [d for _, _, d in llamadas_hechas if d.get("entity_id") == "script.zoom"]
+        comprobar(abre and not empieza and sistema.motor.visita is None,
+                  f"el timbre abre solo y la cara de después no empieza otra visita ({len(abre)} aperturas, "
+                  f"{len(empieza)} visitas nuevas)")
+        hass.states.async_set("binary_sensor.puerta", "on")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.abriendo_hasta is None and hass.states.get("sensor.videoportero_visita").state
+                  == "abierta_automaticamente", "se abre la puerta: manda el sensor y queda «abierta automáticamente»")
+        hass.states.async_set("binary_sensor.puerta", "off")
+        hass.states.async_set("binary_sensor.timbre", "off")
+        await hass.async_block_till_done()
+        sistema.motor.apertura_automatica = False
+
         # Un aviso que tarda (el 15/10 uno tardó 10 s) no frena el botón ABRIR
         # ni los avisos a los demás móviles; los de ese móvil siguen en orden.
         async def aviso_lento(call):

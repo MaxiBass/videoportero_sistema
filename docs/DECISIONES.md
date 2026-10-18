@@ -53,7 +53,7 @@ Así se puede comparar el motor con la automatización real sobre los mismos
 eventos (§8), y la parte de HA queda fina: suscribirse, llamar al motor y
 hacer las llamadas.
 
-## 4. Mismas reglas, y tres cambios aprobados
+## 4. Mismas reglas, y cuatro cambios aprobados
 
 Las reglas se portan una a una y los campos de `Visita` se llaman como las
 variables de la automatización. Resumen:
@@ -78,6 +78,8 @@ variables de la automatización. Resumen:
 - Tampoco empieza visita una cara mientras se habla por el videoportero ni
   en el minuto siguiente a colgar o a cerrarse la puerta, y empezar una
   visita no silencia si alguien está hablando (§12).
+- Ni una cara ni una matrícula empiezan visita con la puerta **abriéndose**
+  (cambio 4, abajo).
 - Tope de 200 eventos por visita, como el `repeat`.
 - **Cuándo un móvil cuenta como que atiende** (06/10/2026, también en la
   automatización, así que no es una diferencia entre las dos). Vale
@@ -101,7 +103,8 @@ variables de la automatización. Resumen:
   sensor de visibilidad junto al de ruta de BrowserMod de cada móvil.
 
 Cambios aprobados por Maxi, y los únicos (los dos primeros el 03/10/2026,
-el tercero el 15/10/2026, ya con la integración mandando):
+el tercero el 15/10/2026 y el cuarto el 18/10/2026, ya con la integración
+mandando):
 
 1. **Decir quién**: «Ana ha abierto la puerta» en vez de «Alguien ha abierto
    la puerta», y lo mismo al atender. Si el aparato no tiene dueño: «Han
@@ -118,6 +121,22 @@ el tercero el 15/10/2026, ya con la integración mandando):
    v0.2.2, a quien atendió la visita se le retira también si contesta en los
    3 minutos siguientes a que termine (lo que dura el cartel). A los demás
    les queda su aviso de cierre, como antes.
+4. **Con la puerta abriéndose, ni una cara ni una matrícula empiezan visita**
+   (v0.2.3). «Abriéndose» va desde que la integración manda abrir (apertura
+   automática o botón ABRIR) hasta que el sensor de la puerta cambia, o como
+   mucho 10 s si no llega a abrirse. Después mandan las reglas de siempre: con
+   la puerta abierta solo el timbre, y tras cerrarse, un minuto sin caras. El
+   timbre sí puede empezar visita, como con la puerta abierta. El 18/10 a las
+   13:16 el timbre abrió solo y terminó la visita; 20 ms después llegó otra
+   cara de la misma persona, con la puerta aún sin constar abierta (el sensor
+   cambió 0,35 s después de la orden), y empezó otra visita: otro aviso con
+   sonido, otra vez el ding-dong de la tablet y, al abrirse la puerta,
+   «Alguien ha abierto la puerta». El sensor de la puerta no sirve para esto
+   porque cambia cuando la puerta ya se mueve, y la cara llegó antes incluso
+   de que el motor arrancara. En la automatización no pasaba porque, con
+   `mode: single`, lo que llegaba mientras terminaba la visita se perdía. La
+   comparación con la automatización lo desactiva (`Ajustes.abriendo` = 0),
+   porque allí la puerta no se abre sola tras la orden.
 
 Saber quién pulsó ABRIR es posible porque el evento del botón trae el
 `device_id` de la app y el usuario en el contexto (comprobado con los eventos

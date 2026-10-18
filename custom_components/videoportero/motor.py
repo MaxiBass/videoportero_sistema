@@ -16,6 +16,8 @@ compararlas. Cambios deliberados respecto a ella (DECISIONES §4):
   el aviso, y quien pulsa ABRIR no recibe el aviso de cierre.
 - A quien contesta (no a quien abre) se le retira el aviso de la visita. Si
   abrió con ABRIR y contesta en los 3 minutos siguientes, también.
+- Con la puerta abriéndose (se ha mandado abrir y el sensor aún no lo dice),
+  una cara o una matrícula no empiezan visita, como con la puerta abierta.
 
 El tiempo lo marca quien llama: cada evento trae su hora, y `proximo_tick()`
 dice cuándo hay que mandar un `Tick` para cerrar visitas o borrar el banner.
@@ -89,6 +91,10 @@ class Ajustes:
     # durante este tiempo: la persona con la que se hablaba sigue delante
     # (DECISIONES §12).
     pausa_caras: timedelta = timedelta(seconds=60)
+    # Tras mandar abrir, la puerta cuenta como abriéndose hasta que su sensor
+    # cambia, o como mucho este tiempo si no llega a abrirse (cambio aprobado
+    # 4, DECISIONES §4). Cero lo desactiva (comparación con la automatización).
+    abriendo: timedelta = timedelta(seconds=10)
     imagen_camara: str = "/api/camera_proxy/camera.videoportero"
     imagen_frigate: str = "/api/frigate/notifications/{}/snapshot.jpg"
 
@@ -309,6 +315,8 @@ class Motor:
         self.audio_cambio: datetime | None = None
         self.visita: Visita | None = None
         self.banner_hasta: datetime | None = None
+        # Hasta cuándo la puerta cuenta como abriéndose (ver Ajustes.abriendo)
+        self.abriendo_hasta: datetime | None = None
         self._ultimo_abrir: Abrir | None = None
         # La última visita terminada: quien conteste poco después aún tiene
         # su aviso (por ejemplo, abrió con ABRIR y luego contesta).
@@ -337,6 +345,7 @@ class Motor:
             se_abre = self.puerta_abierta is False and ev.abierta is True
             self.puerta_abierta = ev.abierta
             self.puerta_cambio = ev.hora
+            self.abriendo_hasta = None  # el sensor ya dice cómo está
             if se_abre and self.visita is not None:
                 quien = None
                 abrir = self._ultimo_abrir
@@ -348,6 +357,7 @@ class Motor:
             self._ultimo_abrir = ev
             if ev.ejecutar:
                 salida.append(AbrirPuerta(automatica=False, quien=ev.quien))
+                self.abriendo_hasta = ev.hora + self.ajustes.abriendo
         elif isinstance(ev, AperturaAutomatica):
             self.apertura_automatica = ev.activa
         elif isinstance(ev, Audio):
@@ -386,6 +396,10 @@ class Motor:
         # Con la puerta abierta solo el timbre empieza una visita. (La
         # condición es «cerrada», así que si no está disponible tampoco.)
         if self.puerta_abierta is not False:
+            return False
+        # Ni con la puerta abriéndose: el sensor tarda unas décimas en cambiar
+        # y una cara de la misma persona empezaba otra visita (18/10, 13:16).
+        if self.abriendo_hasta is not None and ev.hora < self.abriendo_hasta:
             return False
         if isinstance(ev, Matricula):
             return ev.datos.get("avisar") == True  # noqa: E712  como el filtro event_data del disparador
@@ -471,6 +485,7 @@ class Motor:
             and self.puerta_abierta is False
         ):
             salida.append(AbrirPuerta(automatica=True))
+            self.abriendo_hasta = ev.hora + self.ajustes.abriendo
             v.abrimos = True
             v.como = POR_AUTOMATICA
             fin = True

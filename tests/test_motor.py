@@ -721,6 +721,49 @@ def test_llamadas_apagados():
     comprobar(any(x.datos.get("entity_id") == "script.zoom" for x in ll), "lo demás de empezar la visita sigue igual")
 
 
+def test_puerta_abriendose():
+    print("\n[CAMBIO] Con la puerta abriéndose, una cara no empieza otra visita (18/10, 13:16)")
+    m = motor(apertura_automatica=True)
+    m.procesar(Cara(t(0), "", 0.0, "c1"))
+    d = m.procesar(Timbre(t(3.68)))
+    fin = de(TerminaVisita, d)
+    comprobar(de(AbrirPuerta, d) == [AbrirPuerta(automatica=True)] and fin and fin[0].visita.estado == ABIERTA,
+              "el timbre abre solo y termina la visita")
+    comprobar(m.procesar(Cara(t(3.70), "", 0.0, "c1")) == [] and m.visita is None,
+              "la cara de 20 ms después no empieza otra visita (la puerta aún no consta abierta)")
+    comprobar(m.procesar(Matricula(t(3.8), placa(avisar=True))) == [], "ni una matrícula")
+    comprobar(m.procesar(Puerta(t(4.04), True)) == [] and m.abriendo_hasta is None,
+              "se abre la puerta: sin visita no pasa nada, y manda ya el sensor")
+    comprobar(m.procesar(Cara(t(5), "", 0.0, "c1")) == [], "con la puerta abierta, como siempre, tampoco")
+    m.procesar(Puerta(t(60), False))
+    comprobar(m.procesar(Cara(t(100), "", 0.0, "c1")) == [], "recién cerrada, la pausa de siempre")
+    comprobar(de(EmpiezaVisita, m.procesar(Cara(t(120), "", 0.0, "c1"))), "y pasada la pausa, sí")
+
+    m = motor(apertura_automatica=True)
+    m.procesar(Cara(t(0), "", 0.0, "c1"))
+    m.procesar(Timbre(t(1)))
+    comprobar(m.procesar(Cara(t(10.9), "", 0.0, "c1")) == [], "si la puerta no llega a abrirse: 10 s sin caras nuevas")
+    comprobar(de(EmpiezaVisita, m.procesar(Cara(t(11), "", 0.0, "c1"))), "y a los 10 s ya empiezan")
+
+    m = motor(apertura_automatica=True)
+    m.procesar(Cara(t(0), "", 0.0, "c1"))
+    m.procesar(Timbre(t(1)))
+    d = m.procesar(Timbre(t(1.2)))
+    comprobar(de(EmpiezaVisita, d), "el timbre sí empieza visita aunque se esté abriendo (como con la puerta abierta)")
+
+    m = motor()
+    d = m.procesar(Abrir(t(0), "ana"))
+    comprobar(de(AbrirPuerta, d) and m.procesar(Cara(t(0.1), "Luis", 0.99, "c1")) == [],
+              "también tras el botón ABRIR")
+
+    from dataclasses import replace
+    m = Motor(TODOS, replace(AJUSTES, abriendo=timedelta(0)), apertura_automatica=True)
+    m.procesar(Cara(t(0), "", 0.0, "c1"))
+    m.procesar(Timbre(t(3.68)))
+    comprobar(de(EmpiezaVisita, m.procesar(Cara(t(3.70), "", 0.0, "c1"))),
+              "con abriendo=0, como la automatización (para compararla)")
+
+
 if __name__ == "__main__":
     for nombre, prueba in list(globals().items()):
         if nombre.startswith("test_") and callable(prueba):
