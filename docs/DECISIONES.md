@@ -179,7 +179,7 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 |---|---|---|
 | 0 | Motor y pruebas; comparación con la automatización y con el último mes | Nada |
 | 1 | Sombra: instalada, escucha y anota lo que habría hecho (§9) | Solo se instala |
-| 2 | Cambio: avisa, abre y escribe el banner con los mismos ayudantes y scripts; la automatización se desactiva, no se borra | Con OK de Maxi |
+| 2 | Cambio: avisa, abre y escribe el banner con los mismos ayudantes y scripts; la automatización se desactiva, no se borra (14/10/2026; se borró el 19/10/2026, §14) | Con OK de Maxi |
 | 3 | Apertura automática, audio, matrícula nueva y dispositivos del hogar integrados | Con OK de Maxi |
 | 4 | Opcional: panel con historial; retirar lo antiguo (hecho el 19/10/2026: §14) | Con OK de Maxi |
 
@@ -211,6 +211,10 @@ Resultado de la fase 0 (03/10/2026): 452 escenarios iguales a la
 automatización (52 fijos y 400 aleatorios), y las 7 visitas reales desde el
 27/09 iguales a lo que avisó la automatización. Las diferencias de antes del
 27/09 se explican por las versiones anteriores de la automatización.
+
+Desde el 19/10/2026 la automatización ya no existe en casa: la comparación
+diferencial usa sus copias guardadas (privadas), y `tests/test_ha.py` prueba
+la integración en un HA real con sus llamadas de verdad (§14).
 
 Los datos reales nunca entran en el repositorio.
 
@@ -283,11 +287,10 @@ Petición de Maxi (06/10/2026).
   como que atiende. Se recuerda tras reiniciar. Se eligió un interruptor y no
   un campo del formulario porque se cambia al momento, se puede poner en un
   panel y automatizar (por ejemplo, apagar los de alguien que está fuera).
-  El `entity_id` se fija al crearlo con el título del dispositivo, porque la
-  automatización lo consulta mientras siga mandando; no cambia aunque luego se
-  renombre el dispositivo. La automatización avisa igual si el interruptor no
-  existe o no está disponible: un fallo de la integración nunca deja la casa
-  sin avisos.
+  El `entity_id` se fija al crearlo con el título del dispositivo (no depende
+  del idioma) y no cambia aunque luego se renombre el dispositivo. Hasta el
+  19/10/2026 también lo consultaba la automatización, que avisaba igual si el
+  interruptor no existía o no estaba disponible.
 - **Lo que ha encontrado cada móvil** se ve en su formulario (servicio de
   avisos, «Last used app», BrowserMod con su visibilidad), y **Reparaciones**
   avisa si falta o se desactiva algo: el aparato de la app de HA (por
@@ -363,13 +366,14 @@ Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
   sensor de la visita (`llamadas_hechas`, `llamadas_fallidas`; `modo` dice
   quién manda). El aviso que tarda y acaba en «Timeout» no cuenta como
   fallida: la app de HA lo apunta en el registro sin devolver error.
-- **Nunca avisan las dos.** Al arrancar mandando, la integración vuelve a
-  apagar las que sustituye si alguien las encendió; si se encienden mientras
-  manda, sale un aviso en Reparaciones.
+- **Nunca avisan las dos** (hasta la v0.3.0, §14). Al arrancar mandando, la
+  integración volvía a apagar las que sustituye si alguien las encendió; si se
+  encendían mientras mandaba, salía un aviso en Reparaciones.
 - **Red de seguridad, fuera de la integración.** Si la integración no carga o
   se cae, el timbre dejaría de avisar. Una automatización aparte (ejemplo en
-  REQUISITOS) vuelve a encender las antiguas si el sensor de la visita no está
-  disponible y avisa; cuando la integración vuelve, las apaga ella.
+  REQUISITOS) volvía a encender las antiguas si el sensor de la visita no
+  estaba disponible y avisaba; cuando la integración volvía, las apagaba ella.
+  Desde el 19/10/2026 solo avisa: ya no hay nada que encender (§14).
 - **El banner tras un reinicio:** mandando, si al arrancar queda un banner
   escrito, se borra a los 3 min de escribirse, como si no hubiera habido
   reinicio (la automatización lo dejaba puesto).
