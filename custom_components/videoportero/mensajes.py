@@ -71,6 +71,18 @@ def mensaje(v: Visita, hora: datetime, quien: Dispositivo | None) -> str:
     return ""
 
 
+def matricula_guardada(matricula: str, nombre: str) -> tuple[str, str]:
+    return "✅ Matrícula guardada", f"{matricula} → {nombre}"
+
+
+def matricula_ignorada(matricula: str) -> tuple[str, str]:
+    return "ℹ️ Matrícula ignorada", f"{matricula} descartada"
+
+
+def matricula_no_guardada(matricula: str, nombre: str, error: str) -> tuple[str, str]:
+    return "⚠️ No se pudo guardar la matrícula", f"{matricula} → {nombre}: {error}"
+
+
 def boton(v: Visita) -> str:
     """Texto del botón ABRIR: tras abrir o atender, el portón puede estar abierto."""
     return BOTON_ABRIR_CERRAR if (v.abrimos or v.atendida) else BOTON_ABRIR

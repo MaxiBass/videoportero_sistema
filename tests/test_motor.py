@@ -47,15 +47,18 @@ from custom_components.videoportero.motor import (  # noqa: E402
     Atendido,
     Audio,
     Avisar,
+    AvisoMatricula,
     Banner,
     Cara,
     Dispositivo,
     EmpiezaVisita,
     GuardarFoto,
+    GuardarMatricula,
     Matricula,
     Motor,
     PedirNombre,
     Puerta,
+    RespuestaMatricula,
     RetirarAviso,
     TerminaVisita,
     Tick,
@@ -740,6 +743,59 @@ def test_puerta_abriendose():
     m.procesar(Timbre(t(3.68)))
     comprobar(de(EmpiezaVisita, m.procesar(Cara(t(3.70), "", 0.0, "c1"))),
               "con abriendo=0, como la automatización (para compararla)")
+
+
+def test_respuesta_matricula():
+    print("\nRespuestas al aviso de matrícula nueva (antes, dos automatizaciones)")
+    from dataclasses import replace
+
+    luis = replace(LUIS, pide_nombre_matricula=True)
+    m = Motor((ANA, luis, TABLETA, SALON), AJUSTES)
+    d = m.procesar(RespuestaMatricula(t(0), "ana", "2222CCC", "Vecina"))
+    comprobar(d == [GuardarMatricula("2222CCC", "Vecina", "lpr-2222CCC", "ana", ("luis",))],
+              f"Ana contesta con un nombre: se guarda; a Luis se le quitará la pregunta y a Ana se le confirma ({d})")
+    d = m.procesar(RespuestaMatricula(t(1), "luis", "2222CCC", None))
+    comprobar(de(RetirarAviso, d) == [RetirarAviso("lpr-2222CCC", ("ana",))]
+              and [a.destinatarios for a in de(AvisoMatricula, d)] == [("luis",)]
+              and de(AvisoMatricula, d)[0].mensaje == "2222CCC descartada" and not de(GuardarMatricula, d),
+              "«Ignorar»: no guarda; se quita a los demás y a quien pulsa se le dice «descartada»")
+    d = m.procesar(RespuestaMatricula(t(2), None, "2222CCC", None))
+    comprobar(d == [RetirarAviso("lpr-2222CCC", ("ana", "luis"))], "si no se sabe quién, se quita a todos")
+    d = m.procesar(RespuestaMatricula(t(3), None, "2222CCC", "Vecina"))
+    comprobar(d == [GuardarMatricula("2222CCC", "Vecina", "lpr-2222CCC", None, ("ana", "luis"))],
+              "guardar sin saber quién: se quita a todos, sin confirmación")
+    d = m.procesar(RespuestaMatricula(t(4), "salon", "2222CCC", "Vecina"))
+    comprobar(d and d[0].quien is None, "un dispositivo del hogar no recibe avisos: tampoco confirmación")
+    comprobar(m.visita is None, "no toca la visita")
+
+    s = SALIDAS
+    ll = llamadas(AvisoMatricula("lpr-x", ("ana",), "✅ Matrícula guardada", "x → Ana", "mdi:check-circle"), s)
+    comprobar(ll == [Llamada("notify", "mobile_app_ana", {"title": "✅ Matrícula guardada", "message": "x → Ana", "data": {
+        "tag": "lpr-x", "notification_icon": "mdi:check-circle", "channel": "Matrícula", "group": "Matrícula", "timeout": 5}})],
+        "la confirmación sustituye a la pregunta (misma etiqueta) y se borra a los 5 s, como la de la automatización")
+    ll = llamadas(AvisoMatricula("lpr-x-error", ("ana",), "⚠️", "x", "mdi:alert-circle", breve=False), s)
+    comprobar("timeout" not in ll[0].datos["data"], "el aviso de error se queda")
+    comprobar(llamadas(GuardarMatricula("X", "Y", "lpr-X", "ana", ()), s) == [], "guardar lo hace el Sistema, no una llamada suelta")
+    pide = llamadas(PedirNombre("lpr-2222CCC", "2222CCC", "/img", ("ana",)), s)[0]
+    comprobar(pide.datos["data"]["action_data"] == {"matricula": "2222CCC"},
+              "la pregunta lleva la matrícula también en action_data (iOS y macOS no devuelven la etiqueta)")
+
+
+def test_traduccion_respuesta_matricula():
+    print("\nTraducción: respuestas al aviso de matrícula")
+    a = {"device_id": "app-ana"}
+    r = tr.accion_aviso(E, t(0), {**a, "action": "input_nombre_matricula", "tag": "lpr-2222CCC", "reply_text": "  La  Vecina "}, None)
+    comprobar(r == [RespuestaMatricula(t(0), "ana", "2222CCC", "La Vecina")], f"Android: matrícula de la etiqueta, nombre limpio ({r})")
+    comprobar(tr.accion_aviso(E, t(0), {**a, "action": "input_nombre_matricula", "tag": "lpr-2222CCC", "reply_text": "  "}, None) == [],
+              "respuesta vacía: nada")
+    comprobar(tr.accion_aviso(E, t(0), {**a, "action": "ignorar_matricula", "tag": "lpr-2222CCC"}, None)
+              == [RespuestaMatricula(t(0), "ana", "2222CCC", None)], "Ignorar")
+    r = tr.accion_aviso(E, t(0), {"action": "input_nombre_matricula", "action_data": {"matricula": "2222CCC"}, "reply_text": "Vecina"}, "u-luis")
+    comprobar(r == [RespuestaMatricula(t(0), "luis", "2222CCC", "Vecina")], f"iOS/macOS: de action_data, y quién por el usuario ({r})")
+    r = tr.accion_aviso(E, t(0), {"action": "ignorar_matricula", "action_data": '{"matricula": "2222CCC"}'}, None)
+    comprobar(r == [RespuestaMatricula(t(0), None, "2222CCC", None)], "action_data en texto también vale")
+    comprobar(tr.accion_aviso(E, t(0), {"action": "ignorar_matricula", "tag": "visita-1"}, None) == [], "sin matrícula: nada")
+    comprobar(tr.accion_aviso(E, t(0), {"action": "otra_cosa", "tag": "lpr-1"}, None) == [], "otras acciones: nada")
 
 
 if __name__ == "__main__":

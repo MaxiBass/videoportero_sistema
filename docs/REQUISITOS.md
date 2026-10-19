@@ -4,7 +4,7 @@ Qué tiene que estar instalado y activado en Home Assistant y en la app de HA
 (Companion) para que la integración funcione, y qué deja de funcionar si
 falta algo. Consúltalo al añadir un dispositivo o antes de desinstalar algo.
 
-Estado: versión 0.3.0 (la integración manda; sin modo sombra). Este documento se actualiza con
+Estado: versión 0.4.0 (la integración manda; contesta al aviso de matrícula nueva). Este documento se actualiza con
 cada cambio de lo que se necesita.
 
 ## Home Assistant
@@ -18,7 +18,7 @@ cada cambio de lo que se necesita.
 | **MQTT** configurado | Recibir las caras de Frigate | No hay visitas por cara |
 | **Frigate** (complemento + integración) con **reconocimiento facial** activado en la cámara del videoportero | Publica las caras en `frigate/tracked_object_update` | No hay visitas por cara |
 | El **sensor de personas** de esa cámara que crea la integración de Frigate (`sensor.<cámara>_person_count`) | Una cara solo empieza visita si Frigate cuenta una persona (evita detecciones falsas) | Sin configurarlo, cualquier cara empieza visita |
-| **Matrículas** (opcional) | Visitas por matrícula (evento `matriculas_detectada`) | No hay visitas por matrícula |
+| **Matrículas** (opcional) | Visitas por matrícula (evento `matriculas_detectada`) y guardar desde el aviso de matrícula nueva (`matriculas.guardar`) | No hay visitas por matrícula, y «Escribir nombre» avisa de que no se pudo guardar |
 | **BrowserMod** (opcional, recomendado) | Saber que alguien entra en la vista de llamada, también con la app de HA ya abierta | Se pierde esa forma de detectar que alguien atiende |
 | La **app de HA** en cada móvil y tablet | Avisos, botón ABRIR y detectar quién atiende | Ese dispositivo no recibe avisos ni cuenta como atendido |
 
@@ -28,6 +28,11 @@ la visita y con cada timbre, y el que silencia el altavoz). Se eligen en las
 opciones de la integración; si se borra alguno, hay que quitarlo también de
 ahí. El que silencia el altavoz va en su propio campo, no entre los de «al
 empezar»: así no se lanza si alguien está hablando (DECISIONES §12).
+
+Las respuestas al aviso de matrícula nueva («Escribir nombre» e «Ignorar»)
+las procesa la integración desde la v0.4.0 (DECISIONES §15). Si tenías
+automatizaciones que las procesaban, apágalas o bórralas: si no, la matrícula
+se guardaría dos veces.
 
 ## En la app de HA de cada dispositivo
 

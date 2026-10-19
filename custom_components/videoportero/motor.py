@@ -19,6 +19,9 @@ compararlas. Cambios deliberados respecto a ella (DECISIONES §4):
 - Con la puerta abriéndose (se ha mandado abrir y el sensor aún no lo dice),
   una cara o una matrícula no empiezan visita, como con la puerta abierta.
 
+También contesta al aviso de matrícula nueva («Escribir nombre» o «Ignorar»),
+que antes hacían dos automatizaciones aparte (DECISIONES §15).
+
 El tiempo lo marca quien llama: cada evento trae su hora, y `proximo_tick()`
 dice cuándo hay que mandar un `Tick` para cerrar visitas o borrar el banner.
 """
@@ -30,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Union
 
-from .mensajes import boton, mensaje
+from .mensajes import boton, matricula_ignorada, mensaje
 
 # Tipos de dispositivo (DECISIONES §5)
 MOVIL = "movil"
@@ -181,11 +184,22 @@ class Audio:
 
 
 @dataclass(frozen=True)
+class RespuestaMatricula:
+    """Alguien contesta al aviso de matrícula nueva: con un nombre, o «Ignorar»
+    (`nombre` None). `quien`: el dispositivo que contesta, si se sabe."""
+
+    hora: datetime
+    quien: str | None
+    matricula: str
+    nombre: str | None
+
+
+@dataclass(frozen=True)
 class Tick:
     hora: datetime
 
 
-Evento = Union[Timbre, Puerta, Cara, Matricula, Atendido, Abrir, AperturaAutomatica, Audio, Tick]
+Evento = Union[Timbre, Puerta, Cara, Matricula, Atendido, Abrir, AperturaAutomatica, Audio, RespuestaMatricula, Tick]
 
 
 # ── Decisiones (salida) ──────────────────────────────────────────────
@@ -223,6 +237,32 @@ class PedirNombre:
 
 
 @dataclass(frozen=True)
+class GuardarMatricula:
+    """Guardar la matrícula con el nombre contestado (en Matrículas, con avisar
+    y abrir). Si se guarda, se retira la pregunta a `otros` y se confirma a
+    `quien`; si falla, se le avisa (a `otros` si no se sabe quién fue)."""
+
+    matricula: str
+    nombre: str
+    tag: str
+    quien: str | None
+    otros: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AvisoMatricula:
+    """Aviso breve sobre una matrícula nueva: guardada, ignorada o no guardada.
+    Con la etiqueta de la pregunta, la sustituye; `breve`: se borra solo."""
+
+    tag: str
+    destinatarios: tuple[str, ...]
+    titulo: str
+    mensaje: str
+    icono: str
+    breve: bool = True
+
+
+@dataclass(frozen=True)
 class RetirarAviso:
     tag: str
     destinatarios: tuple[str, ...]
@@ -249,7 +289,10 @@ class Banner:
     texto: str  # "" lo quita
 
 
-Decision = Union[EmpiezaVisita, Avisar, PedirNombre, RetirarAviso, AbrirPuerta, GuardarFoto, TerminaVisita, Banner]
+Decision = Union[
+    EmpiezaVisita, Avisar, PedirNombre, RetirarAviso, AbrirPuerta, GuardarFoto, TerminaVisita, Banner,
+    GuardarMatricula, AvisoMatricula,
+]
 
 
 # ── La visita ────────────────────────────────────────────────────────
@@ -360,6 +403,8 @@ class Motor:
                 self.abriendo_hasta = ev.hora + self.ajustes.abriendo
         elif isinstance(ev, AperturaAutomatica):
             self.apertura_automatica = ev.activa
+        elif isinstance(ev, RespuestaMatricula):
+            self._respuesta_matricula(ev, salida)
         elif isinstance(ev, Audio):
             self.hablando = ev.encendido
             self.audio_cambio = ev.hora
@@ -534,6 +579,22 @@ class Motor:
 
     def _pide_nombre(self) -> tuple[str, ...]:
         return tuple(d.id for d in self.dispositivos.values() if d.recibe_avisos and d.pide_nombre_matricula)
+
+    def _respuesta_matricula(self, ev: RespuestaMatricula, salida: list[Decision]) -> None:
+        """La pregunta se quita de todos los que la recibieron; a quien contesta
+        se le sustituye por la confirmación. «Ignorar» no guarda nada (§7)."""
+        tag = f"lpr-{ev.matricula}"
+        contesta = self.dispositivos.get(ev.quien) if ev.quien else None
+        quien = contesta.id if contesta is not None and contesta.recibe_avisos else None
+        otros = tuple(i for i in self._pide_nombre() if i != quien)
+        if ev.nombre is None:
+            if otros:
+                salida.append(RetirarAviso(tag, otros))
+            if quien is not None:
+                titulo, texto = matricula_ignorada(ev.matricula)
+                salida.append(AvisoMatricula(tag, (quien,), titulo, texto, "mdi:close-circle"))
+            return
+        salida.append(GuardarMatricula(ev.matricula, ev.nombre, tag, quien, otros))
 
     def _matricula(self, v: Visita, ev: Matricula, salida: list[Decision]) -> bool:
         d = ev.datos

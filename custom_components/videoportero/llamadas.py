@@ -15,10 +15,12 @@ from typing import Any
 from .motor import (
     AbrirPuerta,
     Avisar,
+    AvisoMatricula,
     Banner,
     Decision,
     EmpiezaVisita,
     GuardarFoto,
+    GuardarMatricula,
     PedirNombre,
     RetirarAviso,
     TerminaVisita,
@@ -149,6 +151,9 @@ def llamadas(decision: Decision, s: Salidas, apagados: Collection[str] = ()) -> 
                                 {"action": ACCION_IGNORAR, "title": "❌ Ignorar"},
                             ],
                             "tag": decision.tag,
+                            # iOS y macOS no devuelven la etiqueta al contestar;
+                            # esto sí (Android devuelve las dos cosas).
+                            "action_data": {"matricula": decision.matricula},
                             "alert_once": True,
                             "group": "Matrícula",
                             "channel": "Matrícula",
@@ -169,6 +174,25 @@ def llamadas(decision: Decision, s: Salidas, apagados: Collection[str] = ()) -> 
             for i in decision.destinatarios
             if i in s.moviles and i not in apagados
         ]
+
+    if isinstance(decision, AvisoMatricula):
+        datos: dict[str, Any] = {
+            "tag": decision.tag,
+            "notification_icon": decision.icono,
+            "channel": "Matrícula",
+            "group": "Matrícula",
+        }
+        if decision.breve:
+            datos["timeout"] = 5
+        return [
+            Llamada("notify", s.moviles[i].notify, {"title": decision.titulo, "message": decision.mensaje, "data": datos})
+            for i in decision.destinatarios
+            if i in s.moviles and i not in apagados
+        ]
+
+    if isinstance(decision, GuardarMatricula):
+        # La hace el Sistema: lo que sigue depende de si se guardó (§15).
+        return []
 
     if isinstance(decision, AbrirPuerta):
         entidad = s.abrir_automatica if decision.automatica else s.abrir_boton

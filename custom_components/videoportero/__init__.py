@@ -31,7 +31,19 @@ from .requisitos import revisar_requisitos
 from .const import DOMAIN, EVENTO_ACCION_AVISO, EVENTO_MATRICULA, SENAL_CAMBIO, TOPIC_CARAS
 from .historial import Historial, visita_a_dict
 from .llamadas import Llamada, llamadas
-from .motor import Banner, Decision, EmpiezaVisita, Evento, Motor, TerminaVisita, Tick
+from .mensajes import matricula_guardada, matricula_no_guardada
+from .motor import (
+    AvisoMatricula,
+    Banner,
+    Decision,
+    EmpiezaVisita,
+    Evento,
+    GuardarMatricula,
+    Motor,
+    RetirarAviso,
+    TerminaVisita,
+    Tick,
+)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
@@ -270,6 +282,11 @@ class Sistema:
     def _aplicar(self, decisiones: list[Decision]) -> None:
         """Encola las llamadas de cada decisión y apunta lo que cambia."""
         for d in decisiones:
+            if isinstance(d, GuardarMatricula):
+                self.entry.async_create_background_task(
+                    self.hass, self._guardar_matricula(d), f"videoportero: guardar {d.matricula}"
+                )
+                continue
             contexto = Context()
             for ll in llamadas(d, self.casa.salidas, self.apagados):
                 self._encolar(ll, contexto)
@@ -317,6 +334,35 @@ class Sistema:
             _LOGGER.warning("Falló %s.%s %s: %s", ll.dominio, ll.servicio, ll.datos.get("entity_id", ""), err)
         else:
             self.hechas += 1
+        self._avisar_cambio()
+
+    async def _guardar_matricula(self, d: GuardarMatricula) -> None:
+        """Guarda en Matrículas (con avisar y abrir, como la automatización que
+        lo hacía). Bien: se quita la pregunta a los demás y se confirma a quien
+        contestó. Mal: se le avisa y la pregunta sigue donde estaba."""
+        try:
+            async with asyncio.timeout(ESPERA_LLAMADA):
+                await self.hass.services.async_call(
+                    "matriculas",
+                    "guardar",
+                    {"matricula": d.matricula, "nombre": d.nombre, "avisar": True, "abrir": True},
+                    blocking=True,
+                    context=Context(),
+                )
+        except Exception as err:  # noqa: BLE001  se avisa en vez de callar
+            self.fallidas += 1
+            _LOGGER.warning("No se pudo guardar la matrícula %s: %s", d.matricula, err)
+            titulo, texto = matricula_no_guardada(d.matricula, d.nombre, str(err) or type(err).__name__)
+            # Con otra etiqueta: la pregunta se queda para volver a intentarlo.
+            destino = (d.quien,) if d.quien else d.otros
+            decisiones: list[Decision] = [AvisoMatricula(f"{d.tag}-error", destino, titulo, texto, "mdi:alert-circle", breve=False)]
+        else:
+            self.hechas += 1
+            titulo, texto = matricula_guardada(d.matricula, d.nombre)
+            decisiones = [RetirarAviso(d.tag, d.otros)] if d.otros else []
+            if d.quien:
+                decisiones.append(AvisoMatricula(d.tag, (d.quien,), titulo, texto, "mdi:check-circle"))
+        self._aplicar(decisiones)
         self._avisar_cambio()
 
     def _programar_tick(self) -> None:

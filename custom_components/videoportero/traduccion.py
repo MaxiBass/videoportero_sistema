@@ -8,6 +8,7 @@ llamar aquí, y la misma traducción sirve para reproducir el historial.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,11 +26,14 @@ from .motor import (
     Evento,
     Matricula,
     Puerta,
+    RespuestaMatricula,
     Timbre,
 )
 
 APP_HA = "io.homeassistant.companion.android"
 ACCION_ABRIR = "ABRIR_PUERTA"
+ACCION_NOMBRE = "input_nombre_matricula"
+ACCION_IGNORAR = "ignorar_matricula"
 
 
 @dataclass(frozen=True)
@@ -131,11 +135,38 @@ def matricula(e: Entradas, hora: datetime, datos: Mapping[str, Any]) -> list[Eve
 
 
 def accion_aviso(e: Entradas, hora: datetime, datos: Mapping[str, Any], usuario: str | None) -> list[Evento]:
-    """Un evento `mobile_app_notification_action`. Solo interesa el botón ABRIR.
+    """Un evento `mobile_app_notification_action`: el botón ABRIR o una
+    respuesta al aviso de matrícula nueva.
 
-    Quién lo pulsó sale del aparato que lo manda o, si no viene, del usuario.
+    Quién fue sale del aparato que lo manda o, si no viene, del usuario.
     """
-    if datos.get("action") != ACCION_ABRIR:
+    accion = datos.get("action")
+    aparato = str(datos.get("device_id") or datos.get("sourceDeviceID") or "")
+    quien = e.aparatos.get(aparato) or (e.usuarios.get(usuario) if usuario else None)
+    if accion == ACCION_ABRIR:
+        return [Abrir(hora, quien, ejecutar=True, tag=str(datos.get("tag") or ""))]
+    if accion not in (ACCION_NOMBRE, ACCION_IGNORAR):
         return []
-    quien = e.aparatos.get(str(datos.get("device_id") or "")) or (e.usuarios.get(usuario) if usuario else None)
-    return [Abrir(hora, quien, ejecutar=True, tag=str(datos.get("tag") or ""))]
+    matricula = _matricula_del_aviso(datos)
+    if not matricula:
+        return []
+    if accion == ACCION_IGNORAR:
+        return [RespuestaMatricula(hora, quien, matricula, None)]
+    # Como la automatización: una respuesta vacía no guarda nada.
+    nombre = " ".join(str(datos.get("reply_text") or "").split())
+    return [RespuestaMatricula(hora, quien, matricula, nombre)] if nombre else []
+
+
+def _matricula_del_aviso(datos: Mapping[str, Any]) -> str:
+    """De la etiqueta `lpr-<matrícula>` (Android) o de `action_data` (iOS y
+    macOS, que no devuelven la etiqueta)."""
+    tag = str(datos.get("tag") or "")
+    if tag.startswith("lpr-"):
+        return tag.removeprefix("lpr-")
+    extra = datos.get("action_data")
+    if isinstance(extra, str):
+        try:
+            extra = json.loads(extra)
+        except ValueError:
+            return ""
+    return str(extra.get("matricula") or "") if isinstance(extra, Mapping) else ""

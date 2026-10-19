@@ -506,6 +506,51 @@ async def recorrido(directorio: Path) -> None:
                   "un banner que quedó escrito antes de reiniciar se borrará a su hora")
         hass.states.async_set("binary_sensor.timbre", "off")
 
+        # ── Respuestas al aviso de matrícula nueva ──
+        print("\nRespuestas al aviso de matrícula nueva")
+        from homeassistant.exceptions import HomeAssistantError
+
+        guardadas: list[dict] = []
+        falla = {"si": False}
+
+        async def guardar(call):
+            if falla["si"]:
+                raise HomeAssistantError("matrícula no válida")
+            guardadas.append(dict(call.data))
+
+        hass.services.async_register("matriculas", "guardar", guardar)
+        llamadas_hechas.clear()
+        fallidas_antes = sistema.fallidas
+        hass.bus.async_fire("mobile_app_notification_action", {
+            "action": "input_nombre_matricula", "tag": "lpr-2222CCC", "reply_text": " Vecina ", "device_id": "app-ana"})
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        comprobar(guardadas == [{"matricula": "2222CCC", "nombre": "Vecina", "avisar": True, "abrir": True}],
+                  f"«Escribir nombre»: guarda en Matrículas con avisar y abrir ({guardadas})")
+        a_ana = [d for dom, s_, d in llamadas_hechas if s_ == "mobile_app_movil_de_ana"]
+        comprobar(len(a_ana) == 1 and a_ana[0]["title"] == "✅ Matrícula guardada" and a_ana[0]["data"]["tag"] == "lpr-2222CCC",
+                  f"y a quien contestó le sustituye la pregunta por «guardada» ({a_ana})")
+        llamadas_hechas.clear()
+        hass.bus.async_fire("mobile_app_notification_action", {
+            "action": "ignorar_matricula", "tag": "lpr-3333DDD", "device_id": "app-ana"})
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        a_ana = [d for dom, s_, d in llamadas_hechas if s_ == "mobile_app_movil_de_ana"]
+        comprobar(len(guardadas) == 1 and len(a_ana) == 1 and a_ana[0]["title"] == "ℹ️ Matrícula ignorada",
+                  f"«Ignorar»: no guarda nada y dice «ignorada» ({a_ana})")
+        falla["si"] = True
+        llamadas_hechas.clear()
+        hass.bus.async_fire("mobile_app_notification_action", {
+            "action": "input_nombre_matricula", "tag": "lpr-2222CCC", "reply_text": "Vecina", "device_id": "app-ana"})
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.3)
+        a_ana = [d for dom, s_, d in llamadas_hechas if s_ == "mobile_app_movil_de_ana"]
+        comprobar(len(a_ana) == 1 and a_ana[0]["title"].startswith("⚠️") and a_ana[0]["data"]["tag"] == "lpr-2222CCC-error"
+                  and "timeout" not in a_ana[0]["data"] and "no válida" in a_ana[0]["message"],
+                  f"si falla, se lo dice (aparte: la pregunta se queda) en vez de callar ({a_ana})")
+        comprobar(sistema.fallidas == fallidas_antes + 1, "y lo cuenta como llamada fallida")
+        falla["si"] = False
+
         # ── Migración de una instalación con modo sombra (hasta la v0.2.3) ──
         print("\nMigración: fuera el modo sombra")
         from homeassistant.helpers import entity_registry as er

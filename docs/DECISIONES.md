@@ -180,7 +180,7 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 | 0 | Motor y pruebas; comparación con la automatización y con el último mes | Nada |
 | 1 | Sombra: instalada, escucha y anota lo que habría hecho (§9) | Solo se instala |
 | 2 | Cambio: avisa, abre y escribe el banner con los mismos ayudantes y scripts; la automatización se desactiva, no se borra (14/10/2026; se borró el 19/10/2026, §14) | Con OK de Maxi |
-| 3 | Apertura automática, audio, matrícula nueva y dispositivos del hogar integrados | Con OK de Maxi |
+| 3 | Apertura automática, audio, matrícula nueva y dispositivos del hogar integrados (respuestas a la matrícula nueva, hecho el 19/10/2026: §15) | Con OK de Maxi |
 | 4 | Opcional: panel con historial; retirar lo antiguo (hecho el 19/10/2026: §14) | Con OK de Maxi |
 
 ## 7. Lo que no se discute (decisiones de Maxi)
@@ -378,8 +378,9 @@ Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
   escrito, se borra a los 3 min de escribirse, como si no hubiera habido
   reinicio (la automatización lo dejaba puesto).
 - **Sigue en YAML hasta la fase 3:** los scripts de las tablets, contestar y
-  colgar el audio y su silenciado de seguridad, lo que hacen las tablets al
-  abrirse la puerta y los botones Guardar/Ignorar de una matrícula nueva.
+  colgar el audio y su silenciado de seguridad y lo que hacen las tablets al
+  abrirse la puerta. Los botones Guardar/Ignorar de una matrícula nueva
+  pasaron a la integración en la v0.4.0 (§15).
 - **Pedir el nombre de una matrícula** es una opción de cada móvil. La
   automatización solo se lo pedía a un móvil; Maxi activó también el Mac
   (14/10). En sombra eso sale como diferencia («solo integración») cuando
@@ -411,4 +412,36 @@ lo que quedaba del sistema antiguo y quitar el modo sombra.
   automatizaciones, no las de casa: sigue sirviendo para comprobar que las
   reglas no cambian sin querer. Las pruebas que necesitaban el modo sombra
   (`sombra_local.py`, `activa_local.py`) quedan retiradas.
+
+## 15. Respuestas al aviso de matrícula nueva (v0.4.0)
+
+Decisión de Maxi (19/10/2026). El aviso «Nueva matrícula» con «✍️ Escribir
+nombre» y «❌ Ignorar» lo mandaba ya la integración a cada móvil con «pedir
+nombre», pero las respuestas las procesaban dos automatizaciones que solo
+contestaban a un móvil puesto a mano: si se respondía desde ese, la pregunta
+se quedaba en los demás (el Mac) aunque la matrícula ya estuviera guardada, y
+un móvil nuevo con «pedir nombre» no se enteraba de nada. Ahora lo hace la
+integración, que es quien manda el aviso y sabe a quién y con qué etiqueta.
+
+- **«Escribir nombre»:** guarda con `matriculas.guardar`, con avisar y abrir,
+  como la automatización. Si va bien, quita la pregunta de los demás
+  dispositivos y a quien contestó se la sustituye por «✅ Matrícula guardada»,
+  que se borra a los 5 s. Si falla, se lo dice con un aviso aparte que no se
+  borra solo («⚠️ No se pudo guardar la matrícula», con el motivo) y la
+  pregunta se queda donde estaba, para volver a intentarlo. Una respuesta
+  vacía no hace nada, como antes.
+- **«Ignorar»:** no guarda nada (§7); quita la pregunta de los demás y a
+  quien pulsó le pone «ℹ️ Matrícula ignorada» 5 s.
+- **Quién contesta** sale como en el botón ABRIR: del aparato que lo manda o,
+  si no viene, del usuario (si solo tiene un aparato). Si no se sabe, se quita
+  la pregunta de todos y no hay confirmación.
+- **iOS y macOS no devuelven la etiqueta** del aviso al contestar (Android sí,
+  con todos los datos del aviso). Por eso la pregunta lleva también la
+  matrícula en `action_data`, que iOS sí devuelve.
+- El motor solo decide (`RespuestaMatricula` → `GuardarMatricula`,
+  `RetirarAviso`, `AvisoMatricula`); guardar lo hace el Sistema, porque lo
+  siguiente depende de si Matrículas lo aceptó. Matrículas no cambia: sigue
+  sin saber nada de avisos.
+- En casa, las dos automatizaciones se apagan al instalar la v0.4.0 (si no,
+  se guardaría dos veces) y se borran cuando se haya probado.
 
