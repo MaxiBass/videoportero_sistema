@@ -11,10 +11,9 @@ Es **público** a propósito, porque HACS no lee repos privados. Por eso:
   aparatos, rutas de paneles de casa ni entidades personales: ni en el código,
   ni en las pruebas, ni en la documentación, ni en los commits. Las pruebas
   usan datos inventados.
-- Lo que usa la configuración real de casa vive fuera, en
-  `~/Downloads/GitHub/Arreglos_Videoportero/` (privado): el diseño completo
-  (`DISENO_INTEGRACION.md`), la comparación con la automatización
-  (`fase0/diferencial.py`) y con el historial (`fase0/historial.py`).
+- No hay pruebas con la configuración real de casa: la carpeta privada con
+  la comparación con la automatización antigua se borró el 29/10/2026
+  (DECISIONES §8).
 
 ## Entorno
 
@@ -52,7 +51,7 @@ tests/test_ha.py     en un HA real (venv), con datos inventados
 En particular:
 
 - Las reglas son las de la automatización, una a una (§4). Si cambias una,
-  pasa la comparación diferencial (privada) y explica la diferencia.
+  pon o cambia su prueba en `tests/test_motor.py` y explica la diferencia.
 - Solo hay cuatro cambios aprobados respecto a la automatización (§4). Cualquier
   otro cambio de comportamiento necesita el OK de Maxi.
 - El botón ABRIR **no caduca** y una matrícula aproximada **sí abre** (§7).
@@ -64,12 +63,10 @@ python3 tests/test_motor.py
 /tmp/hav/bin/python tests/test_ha.py
 ```
 
-Las comparaciones con la casa (privadas):
+Si el venv `/tmp/hav` no existe (macOS lo borra):
 
 ```bash
 /Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.10.1 paho-mqtt
-/tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/diferencial.py 100 1
-/tmp/hav/bin/python ~/Downloads/GitHub/Arreglos_Videoportero/fase0/historial.py
 ```
 
 El Python 3.14 del Mac da un segfault al cerrarse con HA cargado (ver

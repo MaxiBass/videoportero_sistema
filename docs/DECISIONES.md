@@ -216,6 +216,10 @@ Desde el 19/10/2026 la automatización ya no existe en casa: la comparación
 diferencial usa sus copias guardadas (privadas), y `tests/test_ha.py` prueba
 la integración en un HA real con sus llamadas de verdad (§14).
 
+El 29/10/2026 se borraron también esas copias y la comparación (decisión de
+Maxi): desde entonces las reglas solo se comprueban con `tests/test_motor.py`
+y `tests/test_ha.py`.
+
 Los datos reales nunca entran en el repositorio.
 
 ## 9. Fase 1: el modo sombra (retirado en la v0.3.0, §14)
@@ -394,7 +398,8 @@ lo que quedaba del sistema antiguo y quitar el modo sombra.
 - **En casa se borraron** «VTO - Visita unificada», «VTO - Borra el estado de
   la visita a los 3 min» y «Abrir puerta desde notificación», que estaban
   apagadas desde el 14/10. Todo lo que usaban (scripts, ayudantes, sensores)
-  lo usa también la integración, así que no sobró nada más. Hay copia privada.
+  lo usa también la integración, así que no sobró nada más. Hubo copia privada
+  hasta el 29/10.
 - **La red de seguridad ya solo avisa** (Telegram y notificación de HA) si la
   integración no carga o se cae: no queda nada que encender en su lugar. Se
   acepta: hasta ahora no ha hecho falta nunca.
@@ -407,11 +412,10 @@ lo que quedaba del sistema antiguo y quitar el modo sombra.
   la entrada y el sensor de diferencias del registro de entidades. El
   historial guardado conserva las visitas; las diferencias se descartan al
   guardar.
-- **Se mantiene** la comparación privada del motor con la automatización
-  (`fase0/diferencial.py`), que usa las copias guardadas de las
-  automatizaciones, no las de casa: sigue sirviendo para comprobar que las
-  reglas no cambian sin querer. Las pruebas que necesitaban el modo sombra
-  (`sombra_local.py`, `activa_local.py`) quedan retiradas.
+- **Se mantuvo** la comparación privada del motor con la automatización
+  (`fase0/diferencial.py`), con las copias guardadas de las automatizaciones,
+  no las de casa; se borró el 29/10 (§8). Las pruebas que necesitaban el
+  modo sombra (`sombra_local.py`, `activa_local.py`) quedan retiradas.
 
 ## 15. Respuestas al aviso de matrícula nueva (v0.4.0)
 
