@@ -69,7 +69,11 @@ La app de HA para Apple no tiene «Last used app».
 |---|---|---|
 | App de HA abierta y con la sesión iniciada | Mostrar la cámara y el ding dong | No se ve ni suena |
 | **BrowserMod** registrado y su sensor de ruta | Entrar en la vista de llamada desde la tablet cuenta como atender | No se detecta que se atiende desde ahí |
-| Scripts propios (opcional), con ADB si hacen falta | Despertar la pantalla, volúmenes, volver a la vista de inicio | Hasta la fase 3, la tablet no hace nada en la visita |
+| Scripts propios de inicio (opcional), con ADB si hacen falta | Despertar la pantalla, volúmenes, mostrar la cámara | Hasta la fase 3, la tablet no hace nada en la visita |
+
+Lo básico sin script (encender la pantalla, ding dong, mostrar la cámara) y
+los scripts de fin (volver a la vista de inicio al terminar) son de la fase 3
+y aún no existen: hoy solo se lanzan los scripts de inicio (DECISIONES §5).
 
 Ojo: si un script cierra la app de HA a la fuerza, Android no le entrega
 avisos hasta que se vuelve a abrir.
@@ -120,6 +124,13 @@ mode: single
 
 Hasta la v0.3.0 había un modo sombra y la red de seguridad volvía a encender
 las automatizaciones antiguas; ya no hay nada que encender.
+
+## Reinicios
+
+Si Home Assistant se reinicia (o se recarga la integración) con una visita
+en curso, la visita no se recupera: queda en el historial como
+`interrumpida`, y su aviso se queda en los móviles hasta quitarlo a mano
+(DECISIONES §16).
 
 ## Comprobar que todo va
 

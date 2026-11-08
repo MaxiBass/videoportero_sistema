@@ -491,6 +491,28 @@ def test_puerta_no_disponible():
     comprobar(de(Avisar, m.procesar(Cara(t(3), "Ana", 0.99, "c1"))) == [], "ya abierta, la cara no avisa")
 
 
+def test_puerta_se_reconecta():
+    print("\nPuerta que pasa por «no disponible» (v0.4.1)")
+    m = motor()
+    m.procesar(Puerta(t(0), None))
+    m.procesar(Puerta(t(1), False))
+    comprobar(m.puerta_cambio is None and de(EmpiezaVisita, m.procesar(Cara(t(2), "", 0.0, "c1"))),
+              "Dahua se reconecta (no disponible → cerrada): no es cerrarse y la cara empieza visita al momento")
+    m = motor()
+    m.procesar(Puerta(t(0), True))
+    m.procesar(Puerta(t(1), None))
+    m.procesar(Puerta(t(2), False))
+    comprobar(m.puerta_cambio == t(2) and m.procesar(Cara(t(3), "", 0.0, "c1")) == [],
+              "abierta → no disponible → cerrada sí es cerrarse: la pausa de siempre")
+    m = motor(puerta_abierta=None)
+    m.procesar(Puerta(t(0), False))
+    comprobar(m.puerta_cambio is None and de(EmpiezaVisita, m.procesar(Cara(t(1), "", 0.0, "c1"))),
+              "sin saber cómo estaba (arranque), la primera lectura no es un cambio")
+    m = motor()
+    m.procesar(Puerta(t(0), True))
+    comprobar(m.puerta_cambio == t(0), "abrirse sigue contando como cambio")
+
+
 # ── Traducción de HA ─────────────────────────────────────────────────
 
 

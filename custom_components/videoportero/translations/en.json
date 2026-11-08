@@ -152,10 +152,10 @@
         }
       },
       "error": {
-        "sin_app": "Ese aparato no tiene la app de Home Assistant registrada."
+        "sin_app": "Ese aparato no tiene la app de Home Assistant registrada.",
+        "ya_esta": "Ese aparato ya está dado de alta."
       },
       "abort": {
-        "ya_esta": "Ese aparato ya está dado de alta.",
         "reconfigure_successful": "Guardado."
       }
     },
@@ -195,8 +195,10 @@
         }
       },
       "abort": {
-        "ya_esta": "Ese aparato ya está dado de alta.",
         "reconfigure_successful": "Guardado."
+      },
+      "error": {
+        "ya_esta": "Ese aparato ya está dado de alta."
       }
     }
   },

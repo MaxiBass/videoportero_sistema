@@ -47,6 +47,13 @@ TOPIC_CARAS = "frigate/tracked_object_update"
 EVENTO_MATRICULA = "matriculas_detectada"
 EVENTO_ACCION_AVISO = "mobile_app_notification_action"
 
+# Acciones de los avisos (`mobile_app_notification_action`). Las usan
+# llamadas.py, que las pone en los avisos, y traduccion.py, que las reconoce.
+# Cualquier acción ABRIR_PUERTA abre, venga del aviso que venga (DECISIONES §7).
+ACCION_ABRIR = "ABRIR_PUERTA"
+ACCION_NOMBRE = "input_nombre_matricula"
+ACCION_IGNORAR = "ignorar_matricula"
+
 DIAS_HISTORIAL = 90  # decisión de Maxi (DECISIONES §7)
 
 SENAL_CAMBIO = f"{DOMAIN}_cambio"

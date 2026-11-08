@@ -66,7 +66,7 @@ python3 tests/test_motor.py
 Si el venv `/tmp/hav` no existe (macOS lo borra):
 
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.10.1 paho-mqtt
+/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m venv --clear /tmp/hav && /tmp/hav/bin/pip install homeassistant==2026.11.0 paho-mqtt
 ```
 
 El Python 3.14 del Mac da un segfault al cerrarse con HA cargado (ver

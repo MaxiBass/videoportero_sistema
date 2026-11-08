@@ -121,8 +121,7 @@ class VideoporteroConfigFlow(ConfigFlow, domain=DOMAIN):
         return VideoporteroOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
+        # Una sola entrada: lo hace HA por `single_config_entry` del manifest.
         if user_input is not None:
             self._datos.update(user_input)
             return await self.async_step_acciones()
@@ -220,8 +219,8 @@ class MovilFlow(_FlujoDispositivo):
         if user_input is not None:
             aparato = user_input[CONF_APARATO]
             if self._ya_esta(aparato):
-                return self.async_abort(reason="ya_esta")
-            if app_ha(self.hass, aparato) is None:
+                errores[CONF_APARATO] = "ya_esta"
+            elif app_ha(self.hass, aparato) is None:
                 errores[CONF_APARATO] = "sin_app"
             else:
                 self._aparato = aparato
@@ -256,8 +255,8 @@ class MovilFlow(_FlujoDispositivo):
         errores: dict[str, str] = {}
         if user_input is not None:
             if self._ya_esta(user_input[CONF_APARATO], salvo=sub.subentry_id):
-                return self.async_abort(reason="ya_esta")
-            if app_ha(self.hass, user_input[CONF_APARATO]) is None:
+                errores[CONF_APARATO] = "ya_esta"
+            elif app_ha(self.hass, user_input[CONF_APARATO]) is None:
                 errores[CONF_APARATO] = "sin_app"
             else:
                 return self.async_update_and_abort(
@@ -277,16 +276,28 @@ class HogarFlow(_FlujoDispositivo):
     """Un dispositivo del hogar: suena y muestra la cámara; no recibe avisos."""
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        errores: dict[str, str] = {}
         if user_input is not None:
-            if self._ya_esta(user_input.get(CONF_APARATO)):
-                return self.async_abort(reason="ya_esta")
-            return self.async_create_entry(title=self._titulo(user_input), data=user_input)
-        return self.async_show_form(step_id="user", data_schema=esquema_hogar({}))
+            if not self._ya_esta(user_input.get(CONF_APARATO)):
+                return self.async_create_entry(title=self._titulo(user_input), data=user_input)
+            errores[CONF_APARATO] = "ya_esta"
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(esquema_hogar({}), user_input or {}),
+            errors=errores,
+        )
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         sub = self._get_reconfigure_subentry()
+        errores: dict[str, str] = {}
         if user_input is not None:
-            if self._ya_esta(user_input.get(CONF_APARATO), salvo=sub.subentry_id):
-                return self.async_abort(reason="ya_esta")
-            return self.async_update_and_abort(self._get_entry(), sub, title=self._titulo(user_input), data=user_input)
-        return self.async_show_form(step_id="reconfigure", data_schema=esquema_hogar(sub.data))
+            if not self._ya_esta(user_input.get(CONF_APARATO), salvo=sub.subentry_id):
+                return self.async_update_and_abort(
+                    self._get_entry(), sub, title=self._titulo(user_input), data=user_input
+                )
+            errores[CONF_APARATO] = "ya_esta"
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(esquema_hogar(sub.data), user_input or {}),
+            errors=errores,
+        )

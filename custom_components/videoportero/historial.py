@@ -54,8 +54,8 @@ class Historial:
         self._podar(dt_util.now())
 
     def _podar(self, ahora: datetime) -> None:
-        limite = (ahora - timedelta(days=DIAS_HISTORIAL)).isoformat()
-        self.visitas = [v for v in self.visitas if v["inicio"] >= limite]
+        limite = ahora - timedelta(days=DIAS_HISTORIAL)
+        self.visitas = [v for v in self.visitas if _reciente(v, limite)]
 
     def visita(self, datos: dict[str, Any]) -> None:
         self.visitas.append(datos)
@@ -63,7 +63,21 @@ class Historial:
         self.guardar()
 
     def guardar(self) -> None:
-        self._store.async_delay_save(
-            lambda: {"visitas": self.visitas},
-            5,
-        )
+        self._store.async_delay_save(self._datos, 5)
+
+    async def guardar_ya(self) -> None:
+        await self._store.async_save(self._datos())
+
+    def _datos(self) -> dict[str, Any]:
+        return {"visitas": self.visitas}
+
+
+def _reciente(visita: dict[str, Any], limite: datetime) -> bool:
+    """Por fecha y no por texto: un `inicio` con otra zona horaria (horario de
+    verano) o roto no se compara mal. Uno ilegible se conserva."""
+    inicio = dt_util.parse_datetime(str(visita.get("inicio") or ""))
+    if inicio is None:
+        return True
+    if inicio.tzinfo is None:
+        inicio = inicio.replace(tzinfo=dt_util.get_default_time_zone())
+    return inicio >= limite

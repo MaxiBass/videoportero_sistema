@@ -52,6 +52,9 @@ CONTESTAR = (POR_APP, POR_PANEL, POR_AUDIO)
 ATENDIDA = "atendida"
 ABIERTA = "abierta_automaticamente"
 SIN_RESPUESTA = "sin_respuesta"
+# HA se paró con la visita en curso (solo en el historial; no la decide el
+# motor: la apunta el Sistema al parar, DECISIONES §16)
+INTERRUMPIDA = "interrumpida"
 
 TEXTO_BANNER = {
     ATENDIDA: "Llamada ya atendida",
@@ -96,7 +99,7 @@ class Ajustes:
     pausa_caras: timedelta = timedelta(seconds=60)
     # Tras mandar abrir, la puerta cuenta como abriéndose hasta que su sensor
     # cambia, o como mucho este tiempo si no llega a abrirse (cambio aprobado
-    # 4, DECISIONES §4). Cero lo desactiva (comparación con la automatización).
+    # 4, DECISIONES §4). Cero lo desactiva.
     abriendo: timedelta = timedelta(seconds=10)
     imagen_camara: str = "/api/camera_proxy/camera.videoportero"
     imagen_frigate: str = "/api/frigate/notifications/{}/snapshot.jpg"
@@ -355,6 +358,10 @@ class Motor:
         # Último cambio de estado de la puerta y del audio (el `last_changed`
         # de sus entidades): cuentan para la pausa de las caras.
         self.puerta_cambio: datetime | None = None
+        # El último estado conocido de la puerta (abierta o cerrada). Pasar
+        # por «no disponible» no es abrirla ni cerrarla: Dahua se reconecta
+        # (`unavailable → off`) y eso no debe parar las caras un minuto.
+        self.puerta_conocida: bool | None = puerta_abierta
         self.audio_cambio: datetime | None = None
         self.visita: Visita | None = None
         self.banner_hasta: datetime | None = None
@@ -387,7 +394,10 @@ class Motor:
             # de la automatización es off → on).
             se_abre = self.puerta_abierta is False and ev.abierta is True
             self.puerta_abierta = ev.abierta
-            self.puerta_cambio = ev.hora
+            if ev.abierta is not None:
+                if self.puerta_conocida is not None and ev.abierta != self.puerta_conocida:
+                    self.puerta_cambio = ev.hora
+                self.puerta_conocida = ev.abierta
             self.abriendo_hasta = None  # el sensor ya dice cómo está
             if se_abre and self.visita is not None:
                 quien = None

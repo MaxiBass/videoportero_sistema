@@ -63,7 +63,9 @@ async def aparato_con_app(hass, nombre: str, app_id: str, usuario: str, android:
     """Un aparato con la app de HA, como lo deja la app al registrarse."""
     from types import MappingProxyType
 
-    from homeassistant.config_entries import ConfigEntry, ConfigEntryDisabler
+    from unittest.mock import AsyncMock, patch
+
+    from homeassistant.config_entries import ConfigEntry
     from homeassistant.helpers import device_registry as dr, entity_registry as er
 
     if user_id is None:
@@ -73,9 +75,13 @@ async def aparato_con_app(hass, nombre: str, app_id: str, usuario: str, android:
               "os_name": "Android" if android else "iOS", "webhook_id": f"w-{app_id}"},
         discovery_keys=MappingProxyType({}), domain="mobile_app", minor_version=1, options={},
         source="registration", subentries_data=None, title=nombre, unique_id=app_id, version=1,
-        disabled_by=ConfigEntryDisabler.USER,  # no hace falta cargarla
     )
-    await hass.config_entries.async_add(entrada)
+    # Activa, como en casa, pero sin cargarla (no hace falta). Hasta HA
+    # 2026.10 se desactivaba; desde la 2026.11 el aparato y sus entidades de
+    # una entrada desactivada nacen desactivados (`disabled_by=config_entry`)
+    # y la integración no encontraba el sensor `last_used_app`.
+    with patch.object(hass.config_entries, "async_setup", AsyncMock(return_value=True)):
+        await hass.config_entries.async_add(entrada)
     aparato = dr.async_get(hass).async_get_or_create(
         config_entry_id=entrada.entry_id, identifiers={("mobile_app", app_id)}, name=nombre
     )
@@ -92,6 +98,7 @@ async def recorrido(directorio: Path) -> None:
     import logging
 
     from homeassistant.config_entries import ConfigEntryState
+    from homeassistant.core import CoreState
 
     # Lo que HA avisa que la integración usa y está obsoleto (p. ej. `via_device`)
     avisos_obsoletos: list[str] = []
@@ -165,7 +172,9 @@ async def recorrido(directorio: Path) -> None:
 
         r = await sub.async_init((entrada.entry_id, "movil"), context={"source": "user"})
         r = await sub.async_configure(r["flow_id"], {"aparato": ana})
-        comprobar(r["type"] == "abort" and r["reason"] == "ya_esta", "el mismo aparato dos veces: no")
+        comprobar(r["type"] == "form" and r["errors"] == {"aparato": "ya_esta"},
+                  f"el mismo aparato dos veces: no, y se puede elegir otro sin empezar de nuevo ({r.get('errors')})")
+        hass.config_entries.subentries.async_abort(r["flow_id"])
 
         r = await sub.async_init((entrada.entry_id, "movil"), context={"source": "user"})
         r = await sub.async_configure(r["flow_id"], {"aparato": luis})
@@ -488,9 +497,15 @@ async def recorrido(directorio: Path) -> None:
         await asyncio.sleep(0.3)
         de_ana = [d.get("message") for _, s, d in llamadas_hechas if s == "mobile_app_movil_de_ana"]
         comprobar(len(de_ana) == 1, f"el segundo aviso a Ana espera a que acabe el primero ({len(de_ana)} empezados)")
+        descartadas = sistema.descartadas
+        hass.states.async_set("binary_sensor.timbre", "off")
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
         await asyncio.sleep(3.2)
         de_ana = [d.get("data", {}).get("alert_once") for _, s, d in llamadas_hechas if s == "mobile_app_movil_de_ana"]
         comprobar(de_ana == [False, True], f"y le llegan en orden: primero el que suena ({de_ana})")
+        comprobar(sistema.descartadas == descartadas + 1,
+                  "un tercer aviso con el mismo tag sustituye al que esperaba en la cola: no llegan desfasados")
         hass.services.async_register("notify", "mobile_app_movil_de_ana", capturar)
         hass.states.async_set("binary_sensor.timbre", "off")
         estado = hass.states.get("sensor.videoportero_visita")
@@ -498,12 +513,85 @@ async def recorrido(directorio: Path) -> None:
                   f"y lleva la cuenta de sus llamadas ({estado.attributes.get('llamadas_hechas')} hechas, "
                   f"{estado.attributes.get('llamadas_fallidas')} fallidas)")
 
+        # ── Robustez (v0.4.1) ──
+        print("\nRobustez")
+        sistema._procesar([Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4))])
+        await hass.async_block_till_done()
+        await asyncio.sleep(0.2)
+
+        # Un fallo del motor no deja la visita en curso para siempre.
+        real = sistema.motor.procesar
+
+        def procesa_y_falla(ev):
+            real(ev)
+            raise RuntimeError("fallo de prueba (esperado)")
+
+        sistema.motor.procesar = procesa_y_falla
+        if sistema._tick:
+            sistema._tick()
+            sistema._tick = None
+        nivel = logging.getLogger("custom_components.videoportero").level
+        logging.getLogger("custom_components.videoportero").setLevel(logging.CRITICAL)  # sin la traza esperada
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        logging.getLogger("custom_components.videoportero").setLevel(nivel)
+        del sistema.motor.procesar
+        comprobar(sistema.motor.visita is not None and sistema._tick is not None,
+                  "una excepción del motor no deja la visita sin su fin programado")
+        sistema._procesar([Tick(sistema.motor.visita.ultimo_evento + _td(minutes=4))])
+        hass.states.async_set("binary_sensor.timbre", "off")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.visita is None, "(y se cierra a su hora)")
+
+        # Dos cambios de configuración seguidos: una sola suscripción.
+        vivas: list[object] = []
+
+        async def suscribir_lento():
+            await asyncio.sleep(0.05)  # como la espera a MQTT
+            marca = object()
+            vivas.append(marca)
+            sistema._quitar.append(lambda: vivas.remove(marca))
+
+        sistema._suscribir = suscribir_lento
+        await asyncio.gather(sistema.cambiar_configuracion(), sistema.cambiar_configuracion())
+        comprobar(len(vivas) == 1, f"dos cambios de opciones a la vez dejan una sola suscripción ({len(vivas)})")
+        del sistema._suscribir
+        await sistema.cambiar_configuracion()
+
+        # Dahua se reconecta: `unavailable → off` no es cerrarse la puerta.
+        sistema.motor.puerta_cambio = None
+        hass.states.async_set("binary_sensor.puerta", "unavailable")
+        hass.states.async_set("binary_sensor.puerta", "off")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.puerta_cambio is None and sistema.motor.puerta_abierta is False,
+                  "la puerta pasa por «no disponible» y vuelve cerrada: no para las caras")
+
         hass.states.async_set("input_text.banner", "Llamada ya atendida")
         await hass.config_entries.async_reload(entrada.entry_id)
         await hass.async_block_till_done()
         sistema = entrada.runtime_data
         comprobar(sistema.banner == "Llamada ya atendida" and sistema.motor.banner_hasta is not None,
                   "un banner que quedó escrito antes de reiniciar se borrará a su hora")
+        comprobar(sistema.motor.puerta_cambio is not None,
+                  "al recargar con HA en marcha, el last_changed de la puerta sí cuenta")
+        hass.states.async_set("binary_sensor.timbre", "off")
+
+        # Al arrancar HA, el last_changed es la hora del arranque: no cuenta.
+        # Y una visita en curso al parar va al historial como interrumpida.
+        hass.states.async_set("binary_sensor.timbre", "on")
+        await hass.async_block_till_done()
+        comprobar(sistema.motor.visita is not None, "(visita en curso)")
+        hass.set_state(CoreState.starting)
+        await hass.config_entries.async_reload(entrada.entry_id)
+        await hass.async_block_till_done()
+        sistema = entrada.runtime_data
+        hass.set_state(CoreState.running)
+        comprobar(sistema.motor.puerta_cambio is None and sistema.motor.audio_cambio is None,
+                  "al arrancar HA, el last_changed de la puerta y del audio no cuenta como cambio")
+        comprobar(sistema.historial.visitas[-1]["estado"] == "interrumpida",
+                  f"la visita en curso queda en el historial como interrumpida ({sistema.historial.visitas[-1]['estado']})")
+        comprobar(hass.states.get("sensor.videoportero_visita").state == "sin_visita",
+                  "y el sensor, sin visita")
         hass.states.async_set("binary_sensor.timbre", "off")
 
         # ── Respuestas al aviso de matrícula nueva ──
@@ -573,6 +661,12 @@ async def recorrido(directorio: Path) -> None:
                   "y el sensor de diferencias")
 
         comprobar(await hass.config_entries.async_unload(entrada.entry_id), "se descarga limpia")
+        ir.async_create_issue(hass, "videoportero", "prueba_sin_app", is_fixable=False,
+                              severity=ir.IssueSeverity.WARNING, translation_key="sin_app")
+        await hass.config_entries.async_remove(entrada.entry_id)
+        await hass.async_block_till_done()
+        comprobar(not any(d == "videoportero" for d, _ in ir.async_get(hass).issues),
+                  "al borrar la integración se van sus avisos de Reparaciones")
     finally:
         await hass.async_stop(force=True)
 

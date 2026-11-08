@@ -12,6 +12,7 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .const import ACCION_ABRIR, ACCION_IGNORAR, ACCION_NOMBRE
 from .motor import (
     AbrirPuerta,
     Avisar,
@@ -27,9 +28,6 @@ from .motor import (
 )
 
 TITULO = "Videoportero"
-ACCION_ABRIR = "ABRIR_PUERTA"
-ACCION_NOMBRE = "input_nombre_matricula"
-ACCION_IGNORAR = "ignorar_matricula"
 
 
 @dataclass(frozen=True)
@@ -42,8 +40,9 @@ class SalidaMovil:
 @dataclass(frozen=True)
 class SalidaHogar:
     # Scripts propios al empezar la visita; se lanzan con la variable
-    # `origen: vto`, como hoy. Si no hay, se usarán las acciones integradas
-    # (fase 3).
+    # `origen: vto`, como hoy. Lo básico sin script (encender la pantalla,
+    # ding dong, mostrar la cámara) y los scripts de fin están pendientes de
+    # la fase 3 (DECISIONES §5).
     scripts_inicio: tuple[str, ...] = ()
 
 
@@ -72,6 +71,9 @@ class Llamada:
 
 
 def _encender(entidad: str, **datos: Any) -> Llamada:
+    """`turn_on` del dominio de la entidad. Los formularios solo dejan elegir
+    `script` (y `switch` o `script` para abrir), que lo tienen; `variables`
+    solo se pasa a scripts."""
     return Llamada(entidad.split(".", 1)[0], "turn_on", {"entity_id": entidad, **datos})
 
 

@@ -134,9 +134,7 @@ mandando):
    «Alguien ha abierto la puerta». El sensor de la puerta no sirve para esto
    porque cambia cuando la puerta ya se mueve, y la cara llegó antes incluso
    de que el motor arrancara. En la automatización no pasaba porque, con
-   `mode: single`, lo que llegaba mientras terminaba la visita se perdía. La
-   comparación con la automatización lo desactiva (`Ajustes.abriendo` = 0),
-   porque allí la puerta no se abre sola tras la orden.
+   `mode: single`, lo que llegaba mientras terminaba la visita se perdía.
 
 Saber quién pulsó ABRIR es posible porque el evento del botón trae el
 `device_id` de la app y el usuario en el contexto (comprobado con los eventos
@@ -167,11 +165,15 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
   el servicio de aviso, el sensor `last_used_app` (Android) y el `device_id`
   del botón ABRIR. Opciones: vista al tocar el aviso, BrowserMod, aviso de
   cierre, petición de nombre de matrícula nueva y botón ABRIR.
-- **Del hogar:** la integración hace sola lo básico con la app de HA en
-  Android (encender pantalla, ding dong, mostrar la cámara, volver al
-  terminar), así que una tablet nueva no necesita YAML. Si el dispositivo
-  tiene un script propio de inicio o de fin, se usa **en lugar de** lo
-  básico: así siguen las tablets que hacen cosas por ADB.
+- **Del hogar:** hoy solo lanza sus **scripts de inicio** al empezar la
+  visita (con `origen: vto`), y su vista de llamada cuenta como atender.
+  **Pendiente (fase 3):** que la integración haga sola lo básico con la app
+  de HA en Android (encender pantalla, ding dong, mostrar la cámara, volver
+  al terminar), para que una tablet nueva no necesite YAML, y los **scripts
+  de fin** (no existen todavía: solo `scripts_inicio`). Cuando estén, un
+  script propio de inicio o de fin se usará **en lugar de** lo básico, para
+  que sigan las tablets que hacen cosas por ADB. Hasta entonces, una tablet
+  sin script de inicio no hace nada en la visita (REQUISITOS).
 
 ## 6. Fases
 
@@ -188,6 +190,13 @@ El tipo lo da el papel, no el aparato (las tablets también tienen la app):
 - El botón ABRIR de los avisos **no caduca**: abre siempre, de cualquier
   visita (27/09/2026).
 - Una matrícula **aproximada sí abre** (ver Matrículas, §4).
+- Riesgo aceptado del botón ABRIR (anotado el 08/11/2026): abre **cualquier**
+  evento `mobile_app_notification_action` con la acción `ABRIR_PUERTA`, venga
+  del aviso que venga y de cualquier aparato o usuario con la app de HA, no
+  solo de los dados de alta (quién fue solo sirve para los textos). Es lo
+  que hacía la automatización y lo que pide que el botón no caduque. Quien
+  pueda disparar ese evento (un usuario de HA, o el bus de eventos) puede
+  abrir la puerta: no dar acceso a HA a quien no deba poder abrir.
 - «Ignorar» en el aviso de matrícula nueva solo cierra el aviso.
 - Que el mismo coche abra otra visita al volver a leerse se deja así: es cosa
   del detector de Matrículas.
@@ -367,9 +376,12 @@ Petición de Maxi (14/10/2026), tras 10 días en sombra: 10 visitas reales y
   mientras tanto, esperó 2 s a que acabara. La automatización no tenía ese
   problema porque el ABRIR era otra automatización. Una llamada que falla o
   tarda más de 30 s no frena las demás: va al registro y se cuenta en el
-  sensor de la visita (`llamadas_hechas`, `llamadas_fallidas`; `modo` dice
-  quién manda). El aviso que tarda y acaba en «Timeout» no cuenta como
-  fallida: la app de HA lo apunta en el registro sin devolver error.
+  sensor de la visita (`llamadas_hechas`, `llamadas_fallidas`; el atributo
+  `modo`, que decía quién mandaba, se quitó con el modo sombra en la v0.3.0).
+  El aviso que tarda y acaba en «Timeout» no cuenta como fallida: la app de
+  HA lo apunta en el registro sin devolver error. Desde la v0.4.1, un aviso
+  que espera en la cola de un móvil se descarta si detrás llega otro con su
+  misma etiqueta (§16).
 - **Nunca avisan las dos** (hasta la v0.3.0, §14). Al arrancar mandando, la
   integración volvía a apagar las que sustituye si alguien las encendió; si se
   encendían mientras mandaba, salía un aviso en Reparaciones.
@@ -449,3 +461,50 @@ integración, que es quien manda el aviso y sabe a quién y con qué etiqueta.
 - En casa, las dos automatizaciones se apagan al instalar la v0.4.0 (si no,
   se guardaría dos veces) y se borran cuando se haya probado.
 
+## 16. Revisión del 08/11/2026 (v0.4.1)
+
+Arreglos de robustez sin cambio de comportamiento en una visita normal (las
+reglas de §4 no cambian):
+
+- **Se para bien si falla la carga.** El Sistema se para con
+  `entry.async_on_unload`: si la carga de las plataformas falla después de
+  suscribirse, HA reintenta sin dejar vivas las suscripciones ni el intervalo
+  de 30 min del intento anterior.
+- **Cambios de configuración seguidos.** Desuscribir y volver a suscribir va
+  con un candado: dos cambios de opciones seguidos dejaban dos suscripciones
+  a `frigate/tracked_object_update` (cada cara se procesaba dos veces).
+- **Un fallo del motor** se apunta en el registro y no deja la visita «en
+  curso» para siempre: el fin por tiempo se programa siempre.
+- **La puerta que pasa por «no disponible».** Dahua se reconecta
+  (`unavailable → off`) y eso contaba como cerrarse la puerta: las caras no
+  empezaban visita durante un minuto. Ahora solo cuenta pasar de abierta a
+  cerrada o al revés (el último estado conocido), y al arrancar HA no se
+  usa el `last_changed` de la puerta ni del audio, que es la hora del
+  arranque. Al recargar la integración con HA en marcha, sí.
+- **Avisos desfasados.** Con un móvil que no responde, los avisos se
+  encadenaban en su cola cada 30 s. Si en la cola hay otro posterior con la
+  misma etiqueta (que lo sustituiría igual), el intermedio se descarta. El
+  que suena (el primero de la visita) nunca se descarta.
+- **Al borrar la integración** se quitan sus avisos de Reparaciones.
+- El estado del sensor (`atendida`, `abierta_automaticamente`) sale de cómo
+  terminó la visita y no del texto del banner; tras un reinicio, del
+  historial.
+- Un aparato repetido al añadir un dispositivo es un error del campo (se
+  elige otro sin empezar de nuevo) en vez de cerrar el formulario.
+
+**Reinicio con una visita en curso: no se recupera (decisión).** La visita
+en curso y la anterior (para retirar el aviso a quien conteste en los 3 min
+siguientes, §4 cambio 3) viven en memoria. Se valoró guardarlas en el Store
+y recuperarlas al arrancar, y se descartó: un reinicio en mitad de una visita
+es raro (la visita dura como mucho 3 min sin eventos), y recuperarla a
+medias tiene más riesgo que perderla (relojes de fin vencidos durante el
+reinicio, un aviso de cierre tardío, quién atendió sin saberse). Lo que sí se
+hace desde la v0.4.1:
+
+- La visita en curso **entra en el historial** como `interrumpida` al parar
+  HA o recargar la integración (antes se perdía sin rastro). El sensor no
+  tiene ese estado: tras el reinicio queda «sin visita».
+- **Lo que no se arregla:** el aviso de esa visita se queda en los móviles
+  (cada visita lleva su etiqueta, así que el siguiente no lo sustituye) hasta
+  que se quite a mano, y quien conteste justo después del reinicio no ve
+  retirado su aviso. Está anotado en REQUISITOS.

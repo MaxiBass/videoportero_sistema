@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from .const import ACCION_ABRIR, ACCION_IGNORAR, ACCION_NOMBRE
 from .motor import (
     POR_APP,
     POR_AUDIO,
@@ -31,9 +32,6 @@ from .motor import (
 )
 
 APP_HA = "io.homeassistant.companion.android"
-ACCION_ABRIR = "ABRIR_PUERTA"
-ACCION_NOMBRE = "input_nombre_matricula"
-ACCION_IGNORAR = "ignorar_matricula"
 
 
 @dataclass(frozen=True)
