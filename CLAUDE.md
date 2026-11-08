@@ -20,9 +20,10 @@ Es **público** a propósito, porque HACS no lee repos privados. Por eso:
 - Repo local: `~/Downloads/GitHub/videoportero_sistema`
 - HA real por Samba: `/Volumes/config` (si no está montado:
   `osascript -e 'mount volume "smb://192.168.1.9/config"'`).
-- Push con el GitHub CLI de Maxi (desde el 13/10/2026), solo cuando él lo pida y
-  tras revisar el diff por datos personales:
-  `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin main`.
+- Esta sesión puede hacer `git push` directamente (credenciales de `gh`, desde
+  el 13/10/2026; Maxi lo confirmó el 08/11/2026); el flujo y las reglas están
+  en `~/.claude/CLAUDE.md`. Antes, revisar que el diff no lleve datos
+  personales: el repo es público.
 
 ## Estructura
 
